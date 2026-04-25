@@ -1,1 +1,1 @@
-# Chess-tournament-app
+# Blitzstake
