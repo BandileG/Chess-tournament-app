@@ -1,11 +1,6 @@
 import { create } from 'zustand'
 import { devtools, persist } from 'zustand/middleware'
 
-type User = any
-type Wallet = any
-type Tournament = any
-type Match = any
-
 interface Toast {
   id: string
   message: string
@@ -13,22 +8,22 @@ interface Toast {
 }
 
 interface AppStore {
-  user: User | null
+  user: any | null
   session: any | null
-  setUser: (user: User | null) => void
-  setSession: (session: any | null) => void
+  setUser: (user: any) => void
+  setSession: (session: any) => void
   logout: () => void
-  wallet: Wallet | null
-  setWallet: (wallet: Wallet | null) => void
+  wallet: any | null
+  setWallet: (wallet: any) => void
   updateBalance: (balance: number) => void
-  tournaments: Tournament[]
+  tournaments: any[]
   activeTournamentId: string | null
-  setTournaments: (t: Tournament[]) => void
-  upsertTournament: (t: Tournament) => void
+  setTournaments: (t: any[]) => void
+  upsertTournament: (t: any) => void
   setActiveTournament: (id: string | null) => void
   activeMatchId: string | null
-  activeMatch: Match | null
-  setActiveMatch: (match: Match | null) => void
+  activeMatch: any | null
+  setActiveMatch: (match: any) => void
   setActiveMatchId: (id: string | null) => void
   toasts: Toast[]
   sidebarOpen: boolean
@@ -45,7 +40,12 @@ export const useStore = create<AppStore>()(
         session: null,
         setUser: (user) => set({ user }),
         setSession: (session) => set({ session }),
-        logout: () => set({ user: null, session: null, wallet: null, activeMatchId: null }),
+        logout: () => set({
+          user: null,
+          session: null,
+          wallet: null,
+          activeMatchId: null,
+        }),
 
         wallet: null,
         setWallet: (wallet) => set({ wallet }),
@@ -57,9 +57,13 @@ export const useStore = create<AppStore>()(
         activeTournamentId: null,
         setTournaments: (tournaments) => set({ tournaments }),
         upsertTournament: (tournament) => set(state => {
-          const exists = state.tournaments.find(t => t.id === tournament.id)
+          const exists = state.tournaments.find((t: any) => t.id === tournament.id)
           if (exists) {
-            return { tournaments: state.tournaments.map(t => t.id === tournament.id ? tournament : t) }
+            return {
+              tournaments: state.tournaments.map((t: any) =>
+                t.id === tournament.id ? tournament : t
+              )
+            }
           }
           return { tournaments: [tournament, ...state.tournaments] }
         }),
@@ -74,13 +78,17 @@ export const useStore = create<AppStore>()(
         sidebarOpen: false,
         addToast: (message, type = 'info') => {
           const id = Math.random().toString(36).slice(2)
-          set(state => ({ toasts: [...state.toasts, { id, message, type }] }))
+          set(state => ({
+            toasts: [...state.toasts, { id, message, type }]
+          }))
           setTimeout(() => get().removeToast(id), 4000)
         },
         removeToast: (id) => set(state => ({
           toasts: state.toasts.filter(t => t.id !== id)
         })),
-        toggleSidebar: () => set(state => ({ sidebarOpen: !state.sidebarOpen })),
+        toggleSidebar: () => set(state => ({
+          sidebarOpen: !state.sidebarOpen
+        })),
       }),
       {
         name: 'blitzstake-store',
@@ -92,4 +100,3 @@ export const useStore = create<AppStore>()(
     )
   )
 )
-
