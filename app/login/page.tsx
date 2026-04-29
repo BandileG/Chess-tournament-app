@@ -1,27 +1,31 @@
 'use client'
 import { useState } from 'react'
 import Link from 'next/link'
+import { createClientComponentClient } from '@supabase/auth-helpers-nextjs'
+import { useRouter } from 'next/navigation'
 
 export default function LoginPage() {
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const supabase = createClientComponentClient()
+  const router = useRouter()
 
   const handleLogin = async () => {
     setLoading(true)
     setError(null)
-    const res = await fetch('/api/auth/login', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ email, password }),
+
+    const { error } = await supabase.auth.signInWithPassword({
+      email,
+      password,
     })
-    const data = await res.json()
-    if (!res.ok) {
-      setError(data.error || 'Something went wrong')
+
+    if (error) {
+      setError(error.message)
       setLoading(false)
     } else {
-      window.location.href = '/lobby'
+      router.push('/lobby')
     }
   }
 
