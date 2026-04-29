@@ -1,3 +1,12 @@
+'use client'
+export const dynamic = 'force-dynamic'  // ← ADD THIS LINE
+
+import { useState } from 'react'
+import Link from 'next/link'
+import { createClientComponentClient } from '@supabase/auth-helpers-nextjs'
+import { useRouter } from 'next/navigation'
+// ... rest of your code stays exactly the same
+
 import { createClient } from '@supabase/supabase-js'
 import { NextResponse } from 'next/server'
 
