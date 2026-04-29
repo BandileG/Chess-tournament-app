@@ -23,18 +23,23 @@ export default function RegisterPage() {
       setLoading(false)
       return
     }
-    const res = await fetch('/api/auth/register', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ email, password, username }),
-    })
-    const data = await res.json()
-    if (!res.ok) {
-      setError(data.error || 'Something went wrong')
+    try {
+      const res = await fetch('/api/auth/register', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, password, username }),
+      })
+      const data = await res.json()
+      if (!res.ok) {
+        setError(data.error || 'Something went wrong')
+        setLoading(false)
+      } else {
+        setDone(true)
+        window.location.href = '/onboarding/level'
+      }
+    } catch {
+      setError('Network error. Please try again.')
       setLoading(false)
-    } else {
-      setDone(true)
-      window.location.href = '/onboarding/level'
     }
   }
 
@@ -49,16 +54,19 @@ export default function RegisterPage() {
         </div>
         <div className="bg-[#0d1117] border border-[#1e2d3d] rounded-2xl p-8">
           <h2 className="text-xl font-semibold text-white mb-6">Create account</h2>
+
           {error && (
             <div className="bg-red-500/10 border border-red-500/30 text-red-400 text-sm px-4 py-3 rounded-lg mb-5">
               {error}
             </div>
           )}
+
           {done && (
             <div className="bg-green-500/10 border border-green-500/30 text-green-400 text-sm px-4 py-3 rounded-lg mb-5">
               Account created! Redirecting...
             </div>
           )}
+
           <div className="mb-4">
             <label className="text-gray-400 text-sm mb-2 block">Username</label>
             <input
@@ -69,6 +77,7 @@ export default function RegisterPage() {
               className="w-full bg-[#161b22] border border-[#1e2d3d] text-white placeholder-gray-600 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-[#00d4ff] transition-colors"
             />
           </div>
+
           <div className="mb-4">
             <label className="text-gray-400 text-sm mb-2 block">Email</label>
             <input
@@ -79,6 +88,7 @@ export default function RegisterPage() {
               className="w-full bg-[#161b22] border border-[#1e2d3d] text-white placeholder-gray-600 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-[#00d4ff] transition-colors"
             />
           </div>
+
           <div className="mb-6">
             <label className="text-gray-400 text-sm mb-2 block">Password</label>
             <input
@@ -90,6 +100,7 @@ export default function RegisterPage() {
               className="w-full bg-[#161b22] border border-[#1e2d3d] text-white placeholder-gray-600 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-[#00d4ff] transition-colors"
             />
           </div>
+
           <button
             onClick={handleRegister}
             disabled={loading || done}
@@ -97,6 +108,7 @@ export default function RegisterPage() {
           >
             {loading ? 'Creating account...' : 'Create Account'}
           </button>
+
           <p className="text-center text-gray-500 text-sm mt-6">
             Already have an account?{' '}
             <Link href="/login" className="text-[#00d4ff] hover:underline">
