@@ -1,6 +1,5 @@
 'use client'
 import { useState } from 'react'
-import { createClientComponentClient } from '@supabase/auth-helpers-nextjs'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 
@@ -10,7 +9,6 @@ export default function RegisterPage() {
   const [username, setUsername] = useState('')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const supabase = createClientComponentClient()
   const router = useRouter()
 
   const handleRegister = async () => {
@@ -21,44 +19,42 @@ export default function RegisterPage() {
       setLoading(false)
       return
     }
-    const { error } = await supabase.auth.signUp({
-      email,
-      password,
-      options: {
-        data: { username }
+    try {
+      const { createClientComponentClient } = await import('@supabase/auth-helpers-nextjs')
+      const supabase = createClientComponentClient()
+      const { error } = await supabase.auth.signUp({
+        email,
+        password,
+        options: { data: { username } }
+      })
+      if (error) {
+        setError(error.message)
+        setLoading(false)
+      } else {
+        window.location.href = '/onboarding/level'
       }
-    })
-    if (error) {
-      setError(error.message)
+    } catch {
+      setError('Something went wrong. Please try again.')
       setLoading(false)
-    } else {
-      router.push('/onboarding/level')
     }
   }
 
   return (
     <main className="min-h-screen bg-[#080c10] flex items-center justify-center px-4">
       <div className="w-full max-w-md">
-
-        {/* Logo */}
         <div className="text-center mb-10">
           <h1 className="text-4xl font-bold text-[#00d4ff] tracking-tight">
             BLITZ<span className="text-white">STAKE</span>
           </h1>
           <p className="text-gray-500 mt-2 text-sm">Real-time chess tournaments</p>
         </div>
-
-        {/* Card */}
         <div className="bg-[#0d1117] border border-[#1e2d3d] rounded-2xl p-8">
           <h2 className="text-xl font-semibold text-white mb-6">Create account</h2>
-
           {error && (
             <div className="bg-red-500/10 border border-red-500/30 text-red-400 text-sm px-4 py-3 rounded-lg mb-5">
               {error}
             </div>
           )}
-
-          {/* Username */}
           <div className="mb-4">
             <label className="text-gray-400 text-sm mb-2 block">Username</label>
             <input
@@ -69,8 +65,6 @@ export default function RegisterPage() {
               className="w-full bg-[#161b22] border border-[#1e2d3d] text-white placeholder-gray-600 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-[#00d4ff] transition-colors"
             />
           </div>
-
-          {/* Email */}
           <div className="mb-4">
             <label className="text-gray-400 text-sm mb-2 block">Email</label>
             <input
@@ -81,8 +75,6 @@ export default function RegisterPage() {
               className="w-full bg-[#161b22] border border-[#1e2d3d] text-white placeholder-gray-600 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-[#00d4ff] transition-colors"
             />
           </div>
-
-          {/* Password */}
           <div className="mb-6">
             <label className="text-gray-400 text-sm mb-2 block">Password</label>
             <input
@@ -94,7 +86,6 @@ export default function RegisterPage() {
               className="w-full bg-[#161b22] border border-[#1e2d3d] text-white placeholder-gray-600 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-[#00d4ff] transition-colors"
             />
           </div>
-
           <button
             onClick={handleRegister}
             disabled={loading}
@@ -102,7 +93,6 @@ export default function RegisterPage() {
           >
             {loading ? 'Creating account...' : 'Create Account'}
           </button>
-
           <p className="text-center text-gray-500 text-sm mt-6">
             Already have an account?{' '}
             <Link href="/login" className="text-[#00d4ff] hover:underline">
@@ -110,7 +100,6 @@ export default function RegisterPage() {
             </Link>
           </p>
         </div>
-
       </div>
     </main>
   )
