@@ -18,22 +18,31 @@ export default function RegisterPage() {
     setLoading(true)
     setError(null)
 
-    // ✅ Created INSIDE the function - not at module level
-    const supabase = createClientComponentClient()
+    try {
+      const supabase = createClientComponentClient()
 
-    const { error } = await supabase.auth.signUp({
-      email,
-      password,
-      options: {
-        data: { username }
+      console.log('URL:', process.env.NEXT_PUBLIC_SUPABASE_URL)
+      console.log('KEY exists:', !!process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY)
+
+      const { data, error } = await supabase.auth.signUp({
+        email,
+        password,
+        options: {
+          data: { username }
+        }
+      })
+
+      console.log('Response data:', data)
+      console.log('Response error:', error)
+
+      if (error) {
+        setError(error.message)
+      } else {
+        setSuccess(true)
       }
-    })
-
-    if (error) {
-      setError(error.message)
-      setLoading(false)
-    } else {
-      setSuccess(true)
+    } catch (err: any) {
+      setError(err.message || 'Something went wrong')
+    } finally {
       setLoading(false)
     }
   }
