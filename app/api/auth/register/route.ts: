@@ -3,12 +3,11 @@ import { cookies } from 'next/headers'
 import { NextResponse } from 'next/server'
 
 export async function POST(request: Request) {
-  const { email, password, username } = await request.json()
+  const { email, password } = await request.json()
   const supabase = createRouteHandlerClient({ cookies })
-  const { data, error } = await supabase.auth.signUp({
+  const { data, error } = await supabase.auth.signInWithPassword({
     email,
     password,
-    options: { data: { username } }
   })
   if (error) {
     return NextResponse.json({ error: error.message }, { status: 400 })
