@@ -1,5 +1,4 @@
 'use client'
-export const dynamic = 'force-dynamic'
 
 import { useState } from 'react'
 import Link from 'next/link'
@@ -11,12 +10,14 @@ export default function LoginPage() {
   const [password, setPassword] = useState('')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const supabase = createClientComponentClient()
   const router = useRouter()
 
   const handleLogin = async () => {
     setLoading(true)
     setError(null)
+
+    // ✅ Created INSIDE the function - not at module level
+    const supabase = createClientComponentClient()
 
     const { error } = await supabase.auth.signInWithPassword({
       email,
@@ -86,3 +87,4 @@ export default function LoginPage() {
     </main>
   )
 }
+    
