@@ -1,6 +1,5 @@
 'use client'
 import { useState } from 'react'
-import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 
 export default function RegisterPage() {
@@ -9,7 +8,7 @@ export default function RegisterPage() {
   const [username, setUsername] = useState('')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const router = useRouter()
+  const [done, setDone] = useState(false)
 
   const handleRegister = async () => {
     setLoading(true)
@@ -19,23 +18,23 @@ export default function RegisterPage() {
       setLoading(false)
       return
     }
-    try {
-      const { createClientComponentClient } = await import('@supabase/auth-helpers-nextjs')
-      const supabase = createClientComponentClient()
-      const { error } = await supabase.auth.signUp({
-        email,
-        password,
-        options: { data: { username } }
-      })
-      if (error) {
-        setError(error.message)
-        setLoading(false)
-      } else {
-        window.location.href = '/onboarding/level'
-      }
-    } catch {
-      setError('Something went wrong. Please try again.')
+    if (password.length < 6) {
+      setError('Password must be at least 6 characters')
       setLoading(false)
+      return
+    }
+    const res = await fetch('/api/auth/register', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email, password, username }),
+    })
+    const data = await res.json()
+    if (!res.ok) {
+      setError(data.error || 'Something went wrong')
+      setLoading(false)
+    } else {
+      setDone(true)
+      window.location.href = '/onboarding/level'
     }
   }
 
@@ -53,6 +52,11 @@ export default function RegisterPage() {
           {error && (
             <div className="bg-red-500/10 border border-red-500/30 text-red-400 text-sm px-4 py-3 rounded-lg mb-5">
               {error}
+            </div>
+          )}
+          {done && (
+            <div className="bg-green-500/10 border border-green-500/30 text-green-400 text-sm px-4 py-3 rounded-lg mb-5">
+              Account created! Redirecting...
             </div>
           )}
           <div className="mb-4">
@@ -88,7 +92,7 @@ export default function RegisterPage() {
           </div>
           <button
             onClick={handleRegister}
-            disabled={loading}
+            disabled={loading || done}
             className="w-full bg-[#00d4ff] hover:bg-[#00b8e0] disabled:opacity-50 disabled:cursor-not-allowed text-black font-bold py-3 rounded-xl transition-colors text-sm"
           >
             {loading ? 'Creating account...' : 'Create Account'}
