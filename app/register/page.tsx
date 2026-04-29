@@ -1,5 +1,4 @@
 'use client'
-export const dynamic = 'force-dynamic'
 
 import { useState } from 'react'
 import Link from 'next/link'
@@ -13,12 +12,14 @@ export default function RegisterPage() {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [success, setSuccess] = useState(false)
-  const supabase = createClientComponentClient()
   const router = useRouter()
 
   const handleRegister = async () => {
     setLoading(true)
     setError(null)
+
+    // ✅ Created INSIDE the function - not at module level
+    const supabase = createClientComponentClient()
 
     const { error } = await supabase.auth.signUp({
       email,
@@ -48,7 +49,7 @@ export default function RegisterPage() {
             <div className="text-green-400 text-5xl mb-4">✓</div>
             <h2 className="text-xl font-semibold text-white mb-2">Check your email</h2>
             <p className="text-gray-500 text-sm">
-              We sent a confirmation link to <span className="text-white">{email}</span>. 
+              We sent a confirmation link to <span className="text-white">{email}</span>.
               Click it to activate your account.
             </p>
             <Link href="/login" className="block mt-6 text-[#00d4ff] hover:underline text-sm">
