@@ -90,9 +90,8 @@ export default function EloPage() {
     setLoading(false)
   }
 
-  const handleNext = () => router.push('/onboarding/experience')
+  const handleNext = () => router.push('/onboarding/fairplay')
 
-  // No platform or skipped verification
   if (platform === 'none' || !platform) {
     return (
       <main className="min-h-screen bg-[#080c10] flex items-center justify-center px-4">
@@ -126,7 +125,7 @@ export default function EloPage() {
                   localStorage.setItem('onboarding_elo', String(midElo))
                   localStorage.setItem('onboarding_tier', t.title)
                   localStorage.setItem('onboarding_verified', 'false')
-                  router.push('/onboarding/experience')
+                  router.push('/onboarding/fairplay')
                 }}
                 className="py-4 px-5 rounded-2xl border border-[#1e2d3d] bg-[#0d1117] hover:border-[#2d4060] text-left transition-all flex items-center justify-between"
               >
@@ -140,7 +139,6 @@ export default function EloPage() {
     )
   }
 
-  // Has platform — verify ELO
   return (
     <main className="min-h-screen bg-[#080c10] flex items-center justify-center px-4">
       <div className="w-full max-w-lg">
@@ -232,4 +230,4 @@ export default function EloPage() {
       </div>
     </main>
   )
-        }
+}
