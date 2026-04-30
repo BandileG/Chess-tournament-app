@@ -59,7 +59,7 @@ export default function WalletIntroPage() {
       return
     }
 
-    router.push('/onboarding/fairplay')
+    router.push('/onboarding/ready')
   }
 
   return (
@@ -70,7 +70,7 @@ export default function WalletIntroPage() {
         <div className="flex gap-2 mb-10 justify-center">
           {[1,2,3,4,5].map(i => (
             <div key={i} className={`h-1 w-12 rounded-full ${
-              i <= 3 ? 'bg-[#00d4ff]' : 'bg-[#1e2d3d]'
+              i <= 4 ? 'bg-[#00d4ff]' : 'bg-[#1e2d3d]'
             }`} />
           ))}
         </div>
