@@ -39,7 +39,7 @@ export default function ReadyPage() {
         .eq('id', user.id)
     }
 
-    router.push('/lobby')
+    router.push('/dashboard')
   }
 
   const tierColor = TIER_COLORS[tier] || 'text-gray-400'
