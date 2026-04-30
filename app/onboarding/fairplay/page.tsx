@@ -76,7 +76,7 @@ export default function FairPlayPage() {
       return
     }
 
-    router.push('/onboarding/experience')
+    router.push('/onboarding/wallet')
   }
 
   return (
