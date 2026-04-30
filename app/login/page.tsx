@@ -28,7 +28,7 @@ export default function LoginPage() {
       setError(error.message)
       setLoading(false)
     } else {
-      router.push('/lobby')
+      router.push('/onboarding/level')
     }
   }
 
