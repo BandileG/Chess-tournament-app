@@ -98,11 +98,12 @@ export default function DashboardPage() {
       if (!user) { router.push('/login'); return }
       supabase
         .from('users')
-        .select('username, display_name')
+        .select('username, display_name, wallet_balance')
         .eq('id', user.id)
         .single()
         .then(({ data }) => {
           if (data?.username) setUsername(data.username)
+          if (data?.wallet_balance) setBalance(data.wallet_balance)
         })
     })
     const savedTier = localStorage.getItem('onboarding_tier')
