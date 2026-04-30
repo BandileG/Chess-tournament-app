@@ -6,47 +6,69 @@ import { createClientComponentClient } from '@supabase/auth-helpers-nextjs'
 const TOURNAMENTS = [
   {
     id: 1,
-    name: 'Blitz Starter',
-    entry: 1,
-    prize: 10,
-    players: 4,
-    filled: 2,
+    name: 'Blitzstake Starter',
+    entry: 2,
+    prize: 16,
+    players: 10,
+    filled: 3,
     tier: 'Any',
     tierColor: 'text-gray-400',
     starts: 300,
   },
   {
     id: 2,
-    name: 'Pro Blitz',
+    name: 'Blitzstake Gambit',
     entry: 5,
     prize: 40,
-    players: 8,
-    filled: 5,
-    tier: 'Pro+',
-    tierColor: 'text-purple-400',
+    players: 10,
+    filled: 6,
+    tier: 'Beginner+',
+    tierColor: 'text-green-400',
     starts: 600,
   },
   {
     id: 3,
-    name: 'Legend Arena',
-    entry: 10,
-    prize: 120,
-    players: 16,
-    filled: 9,
-    tier: 'Legend+',
-    tierColor: 'text-yellow-400',
+    name: 'Blitzstake Premium',
+    entry: 8,
+    prize: 64,
+    players: 10,
+    filled: 4,
+    tier: 'Intermediate+',
+    tierColor: 'text-blue-400',
     starts: 900,
   },
   {
     id: 4,
-    name: 'Grandmonster Cup',
-    entry: 25,
-    prize: 400,
-    players: 16,
-    filled: 3,
+    name: 'Blitzstake King',
+    entry: 10,
+    prize: 80,
+    players: 10,
+    filled: 7,
+    tier: 'Pro+',
+    tierColor: 'text-purple-400',
+    starts: 1200,
+  },
+  {
+    id: 5,
+    name: 'Blitzstake Emperor',
+    entry: 15,
+    prize: 120,
+    players: 10,
+    filled: 2,
+    tier: 'Legend+',
+    tierColor: 'text-yellow-400',
+    starts: 1500,
+  },
+  {
+    id: 6,
+    name: 'Blitzstake Grandmaster',
+    entry: 35,
+    prize: 280,
+    players: 10,
+    filled: 1,
     tier: 'Grandmonster',
     tierColor: 'text-red-400',
-    starts: 1200,
+    starts: 1800,
   },
 ]
 
@@ -98,7 +120,6 @@ export default function DashboardPage() {
   }
 
   const tierColor = TIER_COLORS[tier] || 'text-gray-400'
-
   const getHour = () => new Date().getHours()
   const greeting = getHour() < 12 ? 'Good morning' : getHour() < 18 ? 'Good afternoon' : 'Good evening'
 
@@ -130,7 +151,7 @@ export default function DashboardPage() {
             <p className="text-gray-500 text-xs">{greeting}</p>
             <p className="text-white font-bold text-lg">{username}</p>
           </div>
-          <div className={`bg-[#0d1117] border border-[#1e2d3d] rounded-xl px-3 py-2`}>
+          <div className="bg-[#0d1117] border border-[#1e2d3d] rounded-xl px-3 py-2">
             <p className={`font-bold text-sm ${tierColor}`}>{tier}</p>
           </div>
         </div>
@@ -148,6 +169,21 @@ export default function DashboardPage() {
         <div className="flex-1 bg-[#0d1117] border border-[#1e2d3d] rounded-2xl px-4 py-3">
           <p className="text-gray-500 text-xs mb-1">Next Tournament</p>
           <NextTournament />
+        </div>
+      </div>
+
+      {/* Rules banner */}
+      <div className="px-5 mb-6">
+        <div className="bg-[rgba(0,212,255,0.06)] border border-[rgba(0,212,255,0.2)] rounded-xl px-4 py-3 flex items-start gap-3">
+          <span className="text-[#00d4ff] text-lg mt-0.5">⚡</span>
+          <div>
+            <p className="text-[#00d4ff] text-xs font-semibold mb-1">How tournaments work</p>
+            <p className="text-gray-400 text-xs leading-relaxed">
+              10 players fill a queue → tournament starts automatically. 
+              First 10 lock in, remaining players wait for the next round. 
+              Winners paid out instantly to wallet.
+            </p>
+          </div>
         </div>
       </div>
 
@@ -200,7 +236,7 @@ function TournamentCard({ tournament: t, balance }: { tournament: typeof TOURNAM
       {/* Progress bar */}
       <div className="mb-3">
         <div className="flex justify-between mb-1">
-          <p className="text-gray-500 text-xs">{t.filled}/{t.players} players</p>
+          <p className="text-gray-500 text-xs">{t.filled}/10 players</p>
           <p className="text-gray-500 text-xs">{spotsLeft} spots left</p>
         </div>
         <div className="w-full bg-[#1e2d3d] rounded-full h-1.5">
@@ -224,14 +260,19 @@ function TournamentCard({ tournament: t, balance }: { tournament: typeof TOURNAM
               : 'bg-[#1e2d3d] text-gray-600 cursor-not-allowed'
           }`}
         >
-          {canAfford ? `Join — $${t.entry}` : `$${t.entry} needed`}
+          {canAfford ? `Join — $${t.entry}` : 'Fund Wallet'}
         </button>
       </div>
     </div>
   )
 }
 
-function NavItem({ icon, label, active, onClick }: { icon: string, label: string, active?: boolean, onClick: () => void }) {
+function NavItem({ icon, label, active, onClick }: {
+  icon: string
+  label: string
+  active?: boolean
+  onClick: () => void
+}) {
   return (
     <button onClick={onClick} className="flex flex-col items-center gap-1">
       <span className="text-xl">{icon}</span>
