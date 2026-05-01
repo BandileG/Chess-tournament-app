@@ -86,7 +86,6 @@ function MatchContent() {
           })
       })
 
-    // Listen for moves
     const channel = supabase
       .channel('match-' + matchId)
       .on(
@@ -126,7 +125,6 @@ function MatchContent() {
     return () => { supabase.removeChannel(channel) }
   }, [matchId, userId])
 
-  // Timer countdown
   useEffect(() => {
     if (status === 'finished') return
     const interval = setInterval(() => {
@@ -146,7 +144,7 @@ function MatchContent() {
     return `${m}:${s}`
   }
 
-  const onDrop = useCallback(async (sourceSquare: string, targetSquare: string) => {
+  const onDrop = useCallback((sourceSquare: string, targetSquare: string) => {
     if (status === 'finished') return false
     if (!matchId || !userId) return false
 
@@ -173,8 +171,7 @@ function MatchContent() {
 
     const supabase = createClientComponentClient()
 
-    // Save move
-    await supabase.from('moves').insert({
+    supabase.from('moves').insert({
       match_id: matchId,
       player_id: userId,
       move_san: move.san,
@@ -187,7 +184,6 @@ function MatchContent() {
       black_time_after: blackTime,
     })
 
-    // Update match
     const isGameOver = gameCopy.isGameOver()
     let newStatus = 'active'
     let winner = null
@@ -203,7 +199,7 @@ function MatchContent() {
       }
     }
 
-    await supabase.from('matches').update({
+    supabase.from('matches').update({
       current_fen: gameCopy.fen(),
       white_time_remaining: whiteTime,
       black_time_remaining: blackTime,
