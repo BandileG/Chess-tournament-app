@@ -95,19 +95,52 @@ export default function DashboardPage() {
 
   useEffect(() => {
     const supabase = createClientComponentClient()
-    supabase.auth.getUser().then(({ data: { user } }) => {
+
+    supabase.auth.getUser().then(async ({ data: { user } }) => {
       if (!user) { router.push('/login'); return }
-      if (user.id) setUserId(user.id)
-      supabase
+      setUserId(user.id)
+
+      // Load user data
+      const { data } = await supabase
         .from('users')
-        .select('username, display_name, wallet_balance')
+        .select('username, wallet_balance')
         .eq('id', user.id)
         .single()
-        .then(({ data }) => {
-          if (data?.username) setUsername(data.username)
-          if (data?.wallet_balance) setBalance(data.wallet_balance)
+
+      if (data?.username) setUsername(data.username)
+      if (data?.wallet_balance != null) setBalance(data.wallet_balance)
+
+      // ✅ Check for active match — redirect back in if found
+      const { data: activeMatch } = await supabase
+        .from('matches')
+        .select('id')
+        .eq('status', 'active')
+        .or(`white_player_id.eq.${user.id},black_player_id.eq.${user.id}`)
+        .maybeSingle()
+
+      if (activeMatch?.id) {
+        router.push(`/tournament/match?match_id=${activeMatch.id}`)
+        return
+      }
+
+      // ✅ Realtime balance updates
+      const channel = supabase
+        .channel('balance-updates')
+        .on('postgres_changes', {
+          event: 'UPDATE',
+          schema: 'public',
+          table: 'users',
+          filter: `id=eq.${user.id}`,
+        }, (payload) => {
+          if (payload.new?.wallet_balance != null) {
+            setBalance(payload.new.wallet_balance)
+          }
         })
+        .subscribe()
+
+      return () => { supabase.removeChannel(channel) }
     })
+
     const savedTier = localStorage.getItem('onboarding_tier')
     if (savedTier) setTier(savedTier)
   }, [router])
