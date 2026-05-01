@@ -13,16 +13,15 @@ function QueueContent() {
   const router = useRouter()
   const searchParams = useSearchParams()
 
-  // Track whether match was found — if so, don't clean up on unmount
   const matchFoundRef = useRef(false)
   const tournamentIdRef = useRef<string | null>(null)
   const userIdRef = useRef<string | null>(null)
 
-  // Keep refs in sync with state so cleanup useEffect can access latest values
   useEffect(() => { tournamentIdRef.current = tournamentId }, [tournamentId])
   useEffect(() => { userIdRef.current = userId }, [userId])
 
-  // ─── Leave queue cleanup ─────────────────────────────────────────────────
+  // ─── Leave queue ──────────────────────────────────────────────────────────
+  // FIX: Was defined twice (second definition nested inside first), causing crash
   const leaveQueue = useCallback(async (tid: string, uid: string) => {
     const supabase = createClientComponentClient()
     await supabase
@@ -30,26 +29,18 @@ function QueueContent() {
       .delete()
       .eq('tournament_id', tid)
       .eq('user_id', uid)
-      const leaveQueue = useCallback(async (tid: string, uid: string) => {
-  const supabase = createClientComponentClient()
-  await supabase
-    .from('tournament_players')
-    .delete()
-    .eq('tournament_id', tid)
-    .eq('user_id', uid)
-}, [])
+  }, [])
 
-  // ─── Cleanup on unmount (back button, nav away, etc.) ───────────────────
+  // ─── Cleanup on unmount ───────────────────────────────────────────────────
   useEffect(() => {
     return () => {
-      // If a match was found, don't clean up — player should stay in tournament
       if (!matchFoundRef.current && tournamentIdRef.current && userIdRef.current) {
         leaveQueue(tournamentIdRef.current, userIdRef.current)
       }
     }
   }, [leaveQueue])
 
-  // ─── Find match and redirect ─────────────────────────────────────────────
+  // ─── Find match and redirect ──────────────────────────────────────────────
   const findMatchAndRedirect = useCallback(async (tid: string, uid: string) => {
     setStatus('starting')
 
@@ -61,7 +52,7 @@ function QueueContent() {
         const json = await res.json()
 
         if (res.ok && json.data?.id) {
-          matchFoundRef.current = true // ✅ Mark match found — skip cleanup on unmount
+          matchFoundRef.current = true
           setStatus('redirecting')
           router.push(`/tournament/match?match_id=${json.data.id}`)
           return
@@ -73,12 +64,12 @@ function QueueContent() {
       await new Promise(r => setTimeout(r, 1000))
     }
 
-    // Fallback — could not find match after 15 tries, clean up and go home
+    // Could not find match after 15 tries
     if (tid && uid) await leaveQueue(tid, uid)
     router.push('/dashboard')
   }, [router, leaveQueue])
 
-  // ─── Init: get params + user ─────────────────────────────────────────────
+  // ─── Init ─────────────────────────────────────────────────────────────────
   useEffect(() => {
     const pos = searchParams.get('position')
     const needed = searchParams.get('needed')
@@ -98,7 +89,7 @@ function QueueContent() {
     })
   }, [searchParams])
 
-  // ─── Check immediately + realtime listener ───────────────────────────────
+  // ─── Check immediately + realtime ─────────────────────────────────────────
   useEffect(() => {
     if (!tournamentId || !userId) return
 
@@ -111,7 +102,7 @@ function QueueContent() {
         )
         const json = await res.json()
         if (res.ok && json.data?.id) {
-          matchFoundRef.current = true // ✅ Mark match found
+          matchFoundRef.current = true
           setStatus('redirecting')
           router.push(`/tournament/match?match_id=${json.data.id}`)
           return true
@@ -155,7 +146,7 @@ function QueueContent() {
     }
   }, [tournamentId, userId, findMatchAndRedirect, router])
 
-  // ─── Cancel handler ──────────────────────────────────────────────────────
+  // ─── Cancel ───────────────────────────────────────────────────────────────
   const handleCancel = async () => {
     if (tournamentId && userId) {
       await leaveQueue(tournamentId, userId)
@@ -179,13 +170,11 @@ function QueueContent() {
     <main className="min-h-screen bg-[#080c10] flex items-center justify-center px-4">
       <div className="w-full max-w-lg text-center">
 
-        {/* Logo */}
         <h1 className="text-xl font-bold mb-10">
           <span className="text-[#00d4ff]">BLITZ</span>
           <span className="text-white">STAKE</span>
         </h1>
 
-        {/* Spinner */}
         <div className="relative w-24 h-24 mx-auto mb-8">
           <div className="w-24 h-24 rounded-full border-4 border-[#1e2d3d] flex items-center justify-center">
             <div className={`w-24 h-24 rounded-full border-4 absolute animate-spin ${
@@ -199,15 +188,9 @@ function QueueContent() {
           </div>
         </div>
 
-        {/* Status text */}
-        <h2 className="text-2xl font-bold text-white mb-2">
-          {getStatusText()}
-        </h2>
-        <p className="text-gray-500 text-sm mb-8">
-          {getSubText()}
-        </p>
+        <h2 className="text-2xl font-bold text-white mb-2">{getStatusText()}</h2>
+        <p className="text-gray-500 text-sm mb-8">{getSubText()}</p>
 
-        {/* Position card */}
         <div className="bg-[#0d1117] border border-[#1e2d3d] rounded-2xl p-6 mb-6">
           <p className="text-gray-500 text-xs mb-1">Your position</p>
           <p className="text-4xl font-bold text-white">
@@ -215,7 +198,6 @@ function QueueContent() {
           </p>
         </div>
 
-        {/* Player dots */}
         <div className="flex justify-center gap-2 mb-4">
           {Array.from({ length: 10 }).map((_, i) => (
             <div
@@ -233,7 +215,6 @@ function QueueContent() {
           {filledSpots} of 10 players joined
         </p>
 
-        {/* Cancel button — only show while waiting */}
         {status === 'waiting' && (
           <button
             onClick={handleCancel}
@@ -243,7 +224,6 @@ function QueueContent() {
           </button>
         )}
 
-        {/* Loading indicator when finding match */}
         {(status === 'starting' || status === 'redirecting') && (
           <div className="flex items-center justify-center gap-2">
             <div className="w-2 h-2 bg-[#00d4ff] rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />
