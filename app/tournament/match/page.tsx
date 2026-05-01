@@ -385,15 +385,17 @@ function MatchContent() {
       <div className="px-3 flex-1 flex items-center justify-center">
         <div className="w-full max-w-md">
           <Chessboard
-            position={game.fen()}
-            onPieceDrop={onDrop}
-            boardOrientation={playerColor}
-            customBoardStyle={{ borderRadius: '8px', boxShadow: '0 4px 40px rgba(0,0,0,0.6)' }}
-            customDarkSquareStyle={{ backgroundColor: '#1e3a5f' }}
-            customLightSquareStyle={{ backgroundColor: '#0d1f2d' }}
-            customSquareStyles={customSquareStyles}
-            arePiecesDraggable={status === 'active' && !!isMyTurn}
-          />
+  position={game.fen()}
+  onPieceDrop={onDrop}
+  boardOrientation={playerColor}
+  customBoardStyle={{ borderRadius: '8px', boxShadow: '0 4px 40px rgba(0,0,0,0.6)' }}
+  customDarkSquareStyle={{ backgroundColor: '#1e3a5f' }}
+  customLightSquareStyle={{ backgroundColor: '#0d1f2d' }}
+  customSquareStyles={customSquareStyles}
+  arePiecesDraggable={status === 'active' && !!isMyTurn}
+  animationDuration={150}
+  areArrowsAllowed={false}
+/>
         </div>
       </div>
 
