@@ -69,7 +69,7 @@ const completeMatch = useCallback(async (winnerId: string | null, result: string
   tournament_id: matchData.tournament_id
 })
     })
-  }, [matchData])
+  }, [matchData]) 
 
   const makeBotMove = useCallback((currentGame: Chess) => {
     const moves = currentGame.moves({ verbose: true })
