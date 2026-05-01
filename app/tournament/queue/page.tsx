@@ -1,5 +1,5 @@
 'use client'
-import { Suspense, useEffect, useState, useCallback } from 'react'
+import { Suspense, useEffect, useState, useCallback, useRef } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { createClientComponentClient } from '@supabase/auth-helpers-nextjs'
 
@@ -13,6 +13,36 @@ function QueueContent() {
   const router = useRouter()
   const searchParams = useSearchParams()
 
+  // Track whether match was found — if so, don't clean up on unmount
+  const matchFoundRef = useRef(false)
+  const tournamentIdRef = useRef<string | null>(null)
+  const userIdRef = useRef<string | null>(null)
+
+  // Keep refs in sync with state so cleanup useEffect can access latest values
+  useEffect(() => { tournamentIdRef.current = tournamentId }, [tournamentId])
+  useEffect(() => { userIdRef.current = userId }, [userId])
+
+  // ─── Leave queue cleanup ─────────────────────────────────────────────────
+  const leaveQueue = useCallback(async (tid: string, uid: string) => {
+    const supabase = createClientComponentClient()
+    await supabase
+      .from('tournament_players')
+      .delete()
+      .eq('tournament_id', tid)
+      .eq('user_id', uid)
+      .eq('status', 'waiting') // Only remove if still waiting — never remove active/matched players
+  }, [])
+
+  // ─── Cleanup on unmount (back button, nav away, etc.) ───────────────────
+  useEffect(() => {
+    return () => {
+      // If a match was found, don't clean up — player should stay in tournament
+      if (!matchFoundRef.current && tournamentIdRef.current && userIdRef.current) {
+        leaveQueue(tournamentIdRef.current, userIdRef.current)
+      }
+    }
+  }, [leaveQueue])
+
   // ─── Find match and redirect ─────────────────────────────────────────────
   const findMatchAndRedirect = useCallback(async (tid: string, uid: string) => {
     setStatus('starting')
@@ -25,6 +55,7 @@ function QueueContent() {
         const json = await res.json()
 
         if (res.ok && json.data?.id) {
+          matchFoundRef.current = true // ✅ Mark match found — skip cleanup on unmount
           setStatus('redirecting')
           router.push(`/tournament/match?match_id=${json.data.id}`)
           return
@@ -36,9 +67,10 @@ function QueueContent() {
       await new Promise(r => setTimeout(r, 1000))
     }
 
-    // Fallback — could not find match
+    // Fallback — could not find match after 15 tries, clean up and go home
+    if (tid && uid) await leaveQueue(tid, uid)
     router.push('/dashboard')
-  }, [router])
+  }, [router, leaveQueue])
 
   // ─── Init: get params + user ─────────────────────────────────────────────
   useEffect(() => {
@@ -66,7 +98,6 @@ function QueueContent() {
 
     const supabase = createClientComponentClient()
 
-    // 1. Check if match already exists (e.g. bracket already generated)
     const checkExisting = async () => {
       try {
         const res = await fetch(
@@ -74,6 +105,7 @@ function QueueContent() {
         )
         const json = await res.json()
         if (res.ok && json.data?.id) {
+          matchFoundRef.current = true // ✅ Mark match found
           setStatus('redirecting')
           router.push(`/tournament/match?match_id=${json.data.id}`)
           return true
@@ -84,7 +116,6 @@ function QueueContent() {
 
     checkExisting()
 
-    // 2. Also watch tournament for status change to in_progress
     const channel = supabase
       .channel('queue-tournament-' + tournamentId)
       .on('postgres_changes', {
@@ -107,7 +138,6 @@ function QueueContent() {
       })
       .subscribe()
 
-    // 3. Also poll every 3 seconds as a safety net
     const poll = setInterval(async () => {
       const found = await checkExisting()
       if (found) clearInterval(poll)
@@ -118,6 +148,14 @@ function QueueContent() {
       clearInterval(poll)
     }
   }, [tournamentId, userId, findMatchAndRedirect, router])
+
+  // ─── Cancel handler ──────────────────────────────────────────────────────
+  const handleCancel = async () => {
+    if (tournamentId && userId) {
+      await leaveQueue(tournamentId, userId)
+    }
+    router.push('/dashboard')
+  }
 
   const getStatusText = () => {
     if (status === 'redirecting') return 'Starting your match...'
@@ -192,7 +230,7 @@ function QueueContent() {
         {/* Cancel button — only show while waiting */}
         {status === 'waiting' && (
           <button
-            onClick={() => router.push('/dashboard')}
+            onClick={handleCancel}
             className="text-gray-600 text-xs hover:text-gray-400 transition-colors"
           >
             Cancel and return to dashboard
