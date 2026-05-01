@@ -347,9 +347,18 @@ function MatchContent() {
 
       {/* Top bar */}
       <div className="flex items-center justify-between px-5 pt-5 pb-3">
-        <button onClick={() => router.push('/dashboard')} className="text-gray-500 text-sm">
-          ← Exit
-        </button>
+        <button
+  onClick={() => {
+    if (status === 'active') {
+      const confirmed = confirm('Your timer keeps running if you leave. Exit anyway?')
+      if (!confirmed) return
+    }
+    router.push('/dashboard')
+  }}
+  className="text-gray-500 text-sm"
+>
+  ← Exit
+</button>
         <h1 className="text-sm font-bold">
           <span className="text-[#00d4ff]">BLITZ</span>
           <span className="text-white">STAKE</span>
