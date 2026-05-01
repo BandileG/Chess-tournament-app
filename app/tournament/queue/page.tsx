@@ -30,8 +30,14 @@ function QueueContent() {
       .delete()
       .eq('tournament_id', tid)
       .eq('user_id', uid)
-      .eq('status', 'waiting') // Only remove if still waiting — never remove active/matched players
-  }, [])
+      const leaveQueue = useCallback(async (tid: string, uid: string) => {
+  const supabase = createClientComponentClient()
+  await supabase
+    .from('tournament_players')
+    .delete()
+    .eq('tournament_id', tid)
+    .eq('user_id', uid)
+}, [])
 
   // ─── Cleanup on unmount (back button, nav away, etc.) ───────────────────
   useEffect(() => {
