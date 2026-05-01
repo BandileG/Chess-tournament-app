@@ -1,9 +1,9 @@
 'use client'
-import { useEffect, useState } from 'react'
+import { Suspense, useEffect, useState } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { createClientComponentClient } from '@supabase/auth-helpers-nextjs'
 
-export default function QueuePage() {
+function QueueContent() {
   const [position, setPosition] = useState<number | null>(null)
   const [playersNeeded, setPlayersNeeded] = useState<number | null>(null)
   const [tournamentId, setTournamentId] = useState<string | null>(null)
@@ -113,5 +113,17 @@ export default function QueuePage() {
 
       </div>
     </main>
+  )
+}
+
+export default function QueuePage() {
+  return (
+    <Suspense fallback={
+      <main className="min-h-screen bg-[#080c10] flex items-center justify-center">
+        <div className="text-white text-sm">Loading...</div>
+      </main>
+    }>
+      <QueueContent />
+    </Suspense>
   )
 }
