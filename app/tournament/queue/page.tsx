@@ -38,7 +38,7 @@ function QueueContent() {
         },
         (payload) => {
           const updated = payload.new as { status: string; current_players: number }
-          if (updated.status === 'active') {
+          if (updated.status === 'in_progress') {
             setStatus('active')
             router.push(`/tournament/match?tournament_id=${tournamentId}`)
           } else {
