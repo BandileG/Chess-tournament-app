@@ -62,12 +62,12 @@ const completeMatch = useCallback(async (winnerId: string | null, result: string
     await fetch('/api/match/complete', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        matchId: matchData.id,
-        winnerId,
-        result,
-        tournamentId: matchData.tournament_id
-      })
+    body: JSON.stringify({
+  match_id: matchData.id,
+  winner_id: winnerId,
+  result,
+  tournament_id: matchData.tournament_id
+})
     })
   }, [matchData])
 
