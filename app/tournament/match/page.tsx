@@ -183,8 +183,8 @@ function MatchContent() {
     }, 1000)
 
     return () => { if (timerRef.current) clearInterval(timerRef.current) }
-  }, [status, matchData])
 
+}, [status, matchData?.id, game.fen()])
   // ─── Handle timeout ──────────────────────────────────────────────────────
   const handleTimeout = async (losingColor: 'white' | 'black') => {
     if (!matchId || !matchDataRef.current) return
