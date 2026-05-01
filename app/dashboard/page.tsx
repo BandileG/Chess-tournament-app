@@ -89,6 +89,7 @@ export default function DashboardPage() {
   const [username, setUsername] = useState('Player')
   const [tier, setTier] = useState('Amateur')
   const [balance, setBalance] = useState(0.00)
+  const [userId, setUserId] = useState('')
   const [activePlayers] = useState(142)
   const router = useRouter()
 
@@ -96,6 +97,7 @@ export default function DashboardPage() {
     const supabase = createClientComponentClient()
     supabase.auth.getUser().then(({ data: { user } }) => {
       if (!user) { router.push('/login'); return }
+      if (user.id) setUserId(user.id)
       supabase
         .from('users')
         .select('username, display_name, wallet_balance')
@@ -180,8 +182,8 @@ export default function DashboardPage() {
           <div>
             <p className="text-[#00d4ff] text-xs font-semibold mb-1">How tournaments work</p>
             <p className="text-gray-400 text-xs leading-relaxed">
-              10 players fill a queue → tournament starts automatically. 
-              First 10 lock in, remaining players wait for the next round. 
+              10 players fill a queue → tournament starts automatically.
+              First 10 lock in, remaining players wait for the next round.
               Winners paid out instantly to wallet.
             </p>
           </div>
@@ -193,7 +195,7 @@ export default function DashboardPage() {
         <p className="text-gray-500 text-xs uppercase tracking-widest mb-4">Live Tournaments</p>
         <div className="flex flex-col gap-4">
           {TOURNAMENTS.map(t => (
-            <TournamentCard key={t.id} tournament={t} balance={balance} />
+            <TournamentCard key={t.id} tournament={t} balance={balance} userId={userId} />
           ))}
         </div>
       </div>
@@ -215,11 +217,48 @@ function NextTournament() {
   return <p className="text-[#00d4ff] font-bold text-lg">{countdown}</p>
 }
 
-function TournamentCard({ tournament: t, balance }: { tournament: typeof TOURNAMENTS[0], balance: number }) {
+function TournamentCard({ tournament: t, balance, userId }: {
+  tournament: typeof TOURNAMENTS[0]
+  balance: number
+  userId: string
+}) {
   const countdown = useCountdown(t.starts)
   const spotsLeft = t.players - t.filled
   const fillPercent = Math.round((t.filled / t.players) * 100)
   const canAfford = balance >= t.entry
+  const [joining, setJoining] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const router = useRouter()
+
+  const handleJoin = async () => {
+    if (!canAfford || joining) return
+    setJoining(true)
+    setError(null)
+
+    try {
+      const res = await fetch('/api/tournament/join', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ tier: t.name, entry_fee: t.entry })
+      })
+
+      const data = await res.json()
+
+      if (data.error) {
+        setError(data.error)
+        setJoining(false)
+        return
+      }
+
+      router.push(
+        `/tournament/queue?tournament_id=${data.tournament_id}&position=${data.queue_position}&needed=${data.players_needed}`
+      )
+
+    } catch {
+      setError('Network error. Try again.')
+      setJoining(false)
+    }
+  }
 
   return (
     <div className="bg-[#0d1117] border border-[#1e2d3d] rounded-2xl p-5">
@@ -234,7 +273,6 @@ function TournamentCard({ tournament: t, balance }: { tournament: typeof TOURNAM
         </div>
       </div>
 
-      {/* Progress bar */}
       <div className="mb-3">
         <div className="flex justify-between mb-1">
           <p className="text-gray-500 text-xs">{t.filled}/10 players</p>
@@ -248,20 +286,25 @@ function TournamentCard({ tournament: t, balance }: { tournament: typeof TOURNAM
         </div>
       </div>
 
+      {error && (
+        <p className="text-red-400 text-xs mb-2">{error}</p>
+      )}
+
       <div className="flex items-center justify-between">
         <div>
           <p className="text-gray-500 text-xs">Starts in</p>
           <p className="text-white text-xs font-bold">{countdown}</p>
         </div>
         <button
-          disabled={!canAfford}
+          onClick={handleJoin}
+          disabled={!canAfford || joining}
           className={`px-6 py-2 rounded-xl font-bold text-sm transition-all ${
             canAfford
               ? 'bg-[#00d4ff] hover:bg-[#00b8e0] text-black'
               : 'bg-[#1e2d3d] text-gray-600 cursor-not-allowed'
           }`}
         >
-          {canAfford ? `Join — $${t.entry}` : 'Fund Wallet'}
+          {joining ? 'Joining...' : canAfford ? `Join — $${t.entry}` : 'Fund Wallet'}
         </button>
       </div>
     </div>
