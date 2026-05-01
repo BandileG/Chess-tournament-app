@@ -111,17 +111,23 @@ export default function DashboardPage() {
       if (data?.wallet_balance != null) setBalance(data.wallet_balance)
 
       // ✅ Check for active match — redirect back in if found
-      const { data: activeMatch } = await supabase
-        .from('matches')
-        .select('id')
-        .eq('status', 'active')
-        .or(`white_player_id.eq.${user.id},black_player_id.eq.${user.id}`)
-        .maybeSingle()
+const { data: activeMatch } = await supabase
+  .from('matches')
+  .select('id, white_player_id, white_time_remaining, black_time_remaining')
+  .eq('status', 'active')
+  .or(`white_player_id.eq.${user.id},black_player_id.eq.${user.id}`)
+  .maybeSingle()
 
-      if (activeMatch?.id) {
-        router.push(`/tournament/match?match_id=${activeMatch.id}`)
-        return
-      }
+if (activeMatch?.id) {
+  const myTime = activeMatch.white_player_id === user.id
+    ? activeMatch.white_time_remaining
+    : activeMatch.black_time_remaining
+
+  if (myTime > 0) {
+    router.push(`/tournament/match?match_id=${activeMatch.id}`)
+    return
+  }
+}
 
       // ✅ Realtime balance updates
       const channel = supabase
