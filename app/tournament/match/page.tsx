@@ -112,7 +112,8 @@ const completeMatch = useCallback(async (winnerId: string | null, result: string
   }, [matchData, userId, whiteTime, blackTime, completeMatch, supabase])
 
   const onDrop = useCallback((sourceSquare: string, targetSquare: string) => {
-    if (!playerColor || !matchData || status !== 'active') return false
+    if (!playerColor || !matchData) return false
+if (status === 'loading' || status === 'completed') return false
     if (game.turn() !== playerColor) return false
 
     const newGame = new Chess(game.fen())
