@@ -68,7 +68,12 @@ const startBotGame = async () => {
       body: JSON.stringify({ time_control: selected.time, increment: selected.inc }),
     })
     const json = await res.json()
-    if (!res.ok) { setSearching(false); return }
+if (!res.ok) { 
+  console.error('Find match error:', json)
+  alert(json.error || 'API error')
+  setSearching(false)
+  return 
+}
 
     const game = json.data.game
     const found = json.data.found
