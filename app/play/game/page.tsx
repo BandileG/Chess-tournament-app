@@ -156,45 +156,44 @@ function GameContent() {
   }, [game, status])
 
   // Stockfish move
-  const makeBotMove = useCallback((currentGame: Chess) => {
-    if (!stockfishRef.current || status === 'finished') return
+  
+const makeBotMove = useCallback(async (currentGame: Chess) => {
+    if (status === 'finished') return
     setBotThinking(true)
 
-    const sf = stockfishRef.current
-    const depth = getBotDepth(botLevel)
-    const delay = getBotDelay(botLevel)
+    try {
+      const res = await fetch('/api/play/bot-move', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          game_id: gameId,
+          fen: currentGame.fen(),
+          bot_level: botLevel,
+        }),
+      })
+      const data = await res.json()
+      if (!data.success) { setBotThinking(false); return }
 
-    sf.onmessage = (e: MessageEvent) => {
-      const msg = e.data as string
-      if (msg.startsWith('bestmove')) {
-        const uci = msg.split(' ')[1]
-        if (!uci || uci === '(none)') return
+      const uci = data.move
+      const from = uci.slice(0, 2)
+      const to = uci.slice(2, 4)
+      const promotion = uci.length === 5 ? uci[4] : 'q'
 
-        setTimeout(() => {
-          const gameCopy = new Chess(currentGame.fen())
-          const from = uci.slice(0, 2)
-          const to = uci.slice(2, 4)
-          const promotion = uci.length === 5 ? uci[4] : 'q'
+      const gameCopy = new Chess(currentGame.fen())
+      const move = gameCopy.move({ from, to, promotion })
+      if (!move) { setBotThinking(false); return }
 
-          try {
-            const move = gameCopy.move({ from, to, promotion })
-            if (!move) return
-            setBotThinking(false)
-            setGame(gameCopy)
-            saveMove(gameCopy, move.san, uci, 'black', 0)
+      setBotThinking(false)
+      setGame(gameCopy)
+      saveMove(gameCopy, move.san, uci, 'black', 0)
 
-            if (gameCopy.isGameOver()) {
-              handleGameOver(gameCopy.isCheckmate() ? userId : null, 'checkmate')
-            }
-          } catch { setBotThinking(false) }
-        }, delay)
+      if (gameCopy.isGameOver()) {
+        handleGameOver(gameCopy.isCheckmate() ? userId : null, 'checkmate')
       }
+    } catch {
+      setBotThinking(false)
     }
-
-    sf.postMessage(`position fen ${currentGame.fen()}`)
-    sf.postMessage(`go depth ${depth}`)
-  }, [botLevel, status, userId])
-
+  }, [botLevel, status, userId, gameId])
   // Trigger bot move when it's bot's turn
   useEffect(() => {
     if (!isVsBot || status === 'finished' || botThinking) return
