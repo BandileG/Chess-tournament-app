@@ -60,15 +60,6 @@ export default function PlayPage() {
       router.push(`/play/game?id=${id}&bot=true`)
     }
   }
-    const res = await fetch('/api/play/start-bot', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ game_id: gameId }),
-    })
-    if (res.ok) {
-      router.push(`/play/game?id=${gameId}&bot=true`)
-    }
-  }
 
   const handlePlay = async () => {
     if (!selected) return
@@ -103,21 +94,18 @@ export default function PlayPage() {
 
   // Countdown timer
   useEffect(() => {
-  if (!searching || !gameId) return
+    if (!searching || !gameId) return
 
-  const id = gameId
-  const interval = setInterval(() => {
-    setCountdown(prev => {
-      const next = prev + 1
-      if (next >= searchTime) {
-        startBotGame(id)
-      }
-      return next
-    })
-  }, 1000)
-
-  return () => clearInterval(interval)
-}, [searching, gameId, searchTime])
+    const id = gameId
+    const interval = setInterval(() => {
+      setCountdown(prev => {
+        const next = prev + 1
+        if (next >= searchTime) {
+          startBotGame(id)
+        }
+        return next
+      })
+    }, 1000)
 
     return () => clearInterval(interval)
   }, [searching, gameId, searchTime])
