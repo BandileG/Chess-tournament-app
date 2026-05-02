@@ -47,9 +47,10 @@ export default function PlayPage() {
   const [searching, setSearching] = useState(false)
   const [searchTime, setSearchTime] = useState(0)
   const [countdown, setCountdown] = useState(0)
-  const [gameId, setGameId] = useState<string | null>(null)
-  const router = useRouter()
-
+  
+const [gameId, setGameId] = useState<string | null>(null)
+const [error, setError] = useState<string | null>(null)
+const router = useRouter()
   const startBotGame = async (id: string) => {
     const res = await fetch('/api/play/start-bot', {
       method: 'POST',
@@ -72,11 +73,10 @@ export default function PlayPage() {
     })
     const json = await res.json()
     if (!res.ok) {
-      console.error('Find match error:', json)
-      alert(json.error || 'API error')
-      setSearching(false)
-      return
-    }
+  setError(json.error || 'API error - check login')
+  setSearching(false)
+  return
+}
 
     const game = json.data.game
     const found = json.data.found
@@ -184,7 +184,11 @@ export default function PlayPage() {
               </div>
             </div>
           ))}
-
+{error && (
+  <div className="px-5 mb-4">
+    <p className="text-red-400 text-sm text-center">{error}</p>
+  </div>
+)}
           <div className="px-5">
             <button
               onClick={handlePlay}
