@@ -50,8 +50,9 @@ function MatchContent() {
   const [opponentIsBot, setOpponentIsBot] = useState(false)
   const timerRef = useRef<NodeJS.Timeout | null>(null)
   const botTimeoutRef = useRef<NodeJS.Timeout | null>(null)
+  const makeBotMoveRef = useRef<((g: Chess) => void) | null>(null)
 
-const completeMatch = useCallback(async (winnerId: string | null, result: string) => {
+  const completeMatch = useCallback(async (winnerId: string | null, result: string) => {
     if (!matchData) return
     timerRef.current && clearInterval(timerRef.current)
     botTimeoutRef.current && clearTimeout(botTimeoutRef.current)
@@ -59,17 +60,22 @@ const completeMatch = useCallback(async (winnerId: string | null, result: string
     setStatus('completed')
     setGameResult(result)
 
-    await fetch('/api/match/complete', {
+    const res = await fetch('/api/match/complete', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-  match_id: matchData.id,
-  winner_id: winnerId,
-  result,
-  tournament_id: matchData.tournament_id
-})
+      body: JSON.stringify({
+        match_id: matchData.id,
+        winner_id: winnerId,
+        result,
+        tournament_id: matchData.tournament_id
+      })
     })
-  }, [matchData]) 
+
+    const json = await res.json()
+    if (!res.ok) {
+      setGameResult(`ERROR: ${json.error ?? 'API failed'}`)
+    }
+  }, [matchData])
 
   const makeBotMove = useCallback((currentGame: Chess) => {
     const moves = currentGame.moves({ verbose: true })
@@ -81,7 +87,9 @@ const completeMatch = useCallback(async (winnerId: string | null, result: string
     const updateMove = async () => {
       await supabase.from('moves').insert({
         match_id: matchData?.id,
-        player_id: matchData?.white_player_id === userId ? matchData?.black_player_id : matchData?.white_player_id,
+        player_id: matchData?.white_player_id === userId
+          ? matchData?.black_player_id
+          : matchData?.white_player_id,
         move_san: move.san,
         move_uci: move.from + move.to,
         fen_after: newGame.fen(),
@@ -111,9 +119,14 @@ const completeMatch = useCallback(async (winnerId: string | null, result: string
     }
   }, [matchData, userId, whiteTime, blackTime, completeMatch, supabase])
 
+  // Keep ref in sync so init can call it
+  useEffect(() => {
+    makeBotMoveRef.current = makeBotMove
+  }, [makeBotMove])
+
   const onDrop = useCallback((sourceSquare: string, targetSquare: string) => {
     if (!playerColor || !matchData) return false
-if (status === 'loading' || status === 'completed') return false
+    if (status === 'loading' || status === 'completed') return false
     if (game.turn() !== playerColor) return false
 
     const newGame = new Chess(game.fen())
@@ -193,7 +206,8 @@ if (status === 'loading' || status === 'completed') return false
         ? match.black_player_id
         : match.white_player_id
 
-      setOpponentIsBot(isBot(opponentId))
+      const botOpponent = isBot(opponentId)
+      setOpponentIsBot(botOpponent)
 
       const { data: profiles } = await supabase
         .from('profiles')
@@ -207,14 +221,21 @@ if (status === 'loading' || status === 'completed') return false
         if (opp) setOpponent({ ...opp, rating: 1200 })
       }
 
-      if (match.current_fen) {
-        const loadedGame = new Chess(match.current_fen)
-        setGame(loadedGame)
-      }
+      const loadedGame = match.current_fen
+        ? new Chess(match.current_fen)
+        : new Chess()
 
+      setGame(loadedGame)
       setWhiteTime(match.white_time_remaining)
       setBlackTime(match.black_time_remaining)
       setStatus(match.status === 'completed' ? 'completed' : 'active')
+
+      // If player is black and opponent is bot, trigger bot's first move
+      if (color === 'b' && botOpponent) {
+        botTimeoutRef.current = setTimeout(() => {
+          makeBotMoveRef.current?.(loadedGame)
+        }, 1500)
+      }
     }
 
     if (matchId) init()
@@ -266,7 +287,7 @@ if (status === 'loading' || status === 'completed') return false
     return () => { supabase.removeChannel(channel) }
   }, [matchId, supabase])
 
-const formatTime = (seconds: number) => {
+  const formatTime = (seconds: number) => {
     const m = Math.floor(seconds / 60)
     const s = seconds % 60
     return `${m}:${s.toString().padStart(2, '0')}`
