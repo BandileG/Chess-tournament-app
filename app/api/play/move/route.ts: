@@ -1,0 +1,58 @@
+import { createRouteHandlerClient } from '@supabase/auth-helpers-nextjs'
+import { cookies } from 'next/headers'
+import { NextResponse } from 'next/server'
+
+export async function POST(request: Request) {
+  try {
+    const supabase = createRouteHandlerClient({ cookies })
+    const { data: { session } } = await supabase.auth.getSession()
+    if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+
+    const { game_id, move_uci, move_san, fen_after, time_spent_ms, color } = await request.json()
+
+    const { data: game } = await supabase
+      .from('casual_games')
+      .select('*')
+      .eq('id', game_id)
+      .single()
+
+    if (!game) return NextResponse.json({ error: 'Game not found' }, { status: 404 })
+    if (game.status !== 'active') return NextResponse.json({ error: 'Game not active' }, { status: 400 })
+
+    const incrementMs = game.increment * 1000
+    const newWhiteTime = color === 'white'
+      ? Math.max(0, game.white_time_remaining - time_spent_ms + incrementMs)
+      : game.white_time_remaining
+    const newBlackTime = color === 'black'
+      ? Math.max(0, game.black_time_remaining - time_spent_ms + incrementMs)
+      : game.black_time_remaining
+
+    // Save move
+    await supabase.from('casual_moves').insert({
+      game_id,
+      player_id: session.user.id,
+      move_san,
+      move_uci,
+      fen_after,
+      move_number: Math.ceil((game.move_count + 1) / 2),
+      color,
+      time_spent_ms,
+      white_time_after: newWhiteTime,
+      black_time_after: newBlackTime,
+    })
+
+    // Update game
+    await supabase.from('casual_games').update({
+      current_fen: fen_after,
+      move_count: game.move_count + 1,
+      white_time_remaining: newWhiteTime,
+      black_time_remaining: newBlackTime,
+      last_move_at: new Date().toISOString(),
+    }).eq('id', game_id)
+
+    return NextResponse.json({ success: true })
+  } catch (err) {
+    console.error('[PLAY-MOVE]', err)
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
+  }
+}
