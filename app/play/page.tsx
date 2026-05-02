@@ -50,7 +50,13 @@ export default function PlayPage() {
   const [countdown, setCountdown] = useState(0)
   const [gameId, setGameId] = useState<string | null>(null)
   const router = useRouter()
-
+const startBotGame = async () => {
+    if (!gameId) return
+    const res = await fetch('/api/play/start-bot', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ game_id: gameId }),
+    })
   const handlePlay = async () => {
     if (!selected) return
     setSearching(true)
@@ -116,13 +122,7 @@ export default function PlayPage() {
     return () => { supabase.removeChannel(channel) }
   }, [gameId, searching])
 
-  const startBotGame = async () => {
-    if (!gameId) return
-    const res = await fetch('/api/play/start-bot', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ game_id: gameId }),
-    })
+  
     if (res.ok) {
       router.push(`/play/game?id=${gameId}&bot=true`)
     }
