@@ -33,6 +33,7 @@ function GameContent() {
   const [result, setResult] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
   const [botThinking, setBotThinking] = useState(false)
+const [selectedSquare, setSelectedSquare] = useState<string | null>(null)
   const stockfishRef = useRef<Worker | null>(null)
   const router = useRouter()
   const searchParams = useSearchParams()
@@ -241,7 +242,37 @@ const makeBotMove = useCallback(async (currentGame: Chess) => {
       }).eq('id', gameId)
     }
   }
+const handleSquareClick = useCallback((square: string) => {
+    if (status === 'finished' || botThinking) return
+    const isMyTurn = (playerColor === 'white' && game.turn() === 'w') ||
+                     (playerColor === 'black' && game.turn() === 'b')
+    if (!isMyTurn) return
 
+    if (selectedSquare) {
+      const gameCopy = new Chess(game.fen())
+      try {
+        const move = gameCopy.move({ from: selectedSquare, to: square, promotion: 'q' })
+        if (move) {
+          const timeSpent = Date.now() - moveStartRef.current
+          moveStartRef.current = Date.now()
+          setGame(gameCopy)
+          setSelectedSquare(null)
+          saveMove(gameCopy, move.san, selectedSquare + square, playerColor, timeSpent)
+          if (gameCopy.isGameOver()) {
+            if (gameCopy.isCheckmate()) handleGameOver(userId, 'checkmate')
+            else handleGameOver(null, 'draw')
+          }
+          return
+        }
+      } catch {}
+      setSelectedSquare(null)
+    } else {
+      const piece = game.get(square as any)
+      if (piece && piece.color === (playerColor === 'white' ? 'w' : 'b')) {
+        setSelectedSquare(square)
+      }
+    }
+  }, [game, selectedSquare, playerColor, status, botThinking, userId, gameId])
   const onDrop = useCallback((sourceSquare: string, targetSquare: string) => {
     if (status === 'finished') return false
     if (!gameId || !userId) return false
@@ -359,6 +390,10 @@ const makeBotMove = useCallback(async (currentGame: Chess) => {
             customDarkSquareStyle={{ backgroundColor: '#1e2d3d' }}
             customLightSquareStyle={{ backgroundColor: '#2d4060' }}
             arePiecesDraggable={status !== 'finished' && !botThinking}
+onSquareClick={handleSquareClick}
+customSquareStyles={{
+  ...(selectedSquare ? { [selectedSquare]: { backgroundColor: 'rgba(0, 212, 255, 0.4)' } } : {})
+}}
           />
         </div>
       </div>
