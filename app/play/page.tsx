@@ -89,14 +89,19 @@ const startBotGame = async () => {
   // Countdown timer
  useEffect(() => {
   if (!searching || !gameId) return
-  if (countdown === 0) {
-    startBotGame()
-    return
-  }
-  const timer = setTimeout(() => setCountdown(prev => prev - 1), 1000)
-  return () => clearTimeout(timer)
-}, [searching, countdown, gameId])
   
+  const interval = setInterval(() => {
+    setCountdown(prev => {
+      const next = prev + 1
+      if (next >= searchTime) {
+        startBotGame()
+      }
+      return next
+    })
+  }, 1000)
+
+  return () => clearInterval(interval)
+}, [searching, gameId, searchTime])
 
   // Listen for opponent joining
   useEffect(() => {
