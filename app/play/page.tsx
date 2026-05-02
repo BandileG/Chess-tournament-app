@@ -82,9 +82,8 @@ const startBotGame = async () => {
     // Created new game — wait for opponent
     setGameId(game.id)
     const waitSeconds = getRandomSearchTime()
-    setSearchTime(waitSeconds)
-    setCountdown(waitSeconds)
-  }
+setSearchTime(waitSeconds)
+setCountdown(0)
 
   // Countdown timer
  useEffect(() => {
