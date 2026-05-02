@@ -11,7 +11,7 @@ export async function GET(request: Request) {
     const user_id = searchParams.get('user_id')
 
     if (!tournament_id || !user_id) {
-      return NextResponse.json({ error: 'Missing params' }, { status: 400 })
+      return NextResponse.json({ error:   'Missing params' }, { status: 400 })
     }
 
     // Find the match this player is in
