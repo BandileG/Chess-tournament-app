@@ -90,12 +90,7 @@ export default function PlayPage() {
   const timer = setTimeout(() => setCountdown(prev => prev - 1), 1000)
   return () => clearTimeout(timer)
 }, [searching, countdown, gameId])
-  // When countdown hits 0 start bot
-  useEffect(() => {
-    if (searching && countdown === 0 && gameId && searchTime > 0) {
-      startBotGame()
-    }
-  }, [countdown])
+  
 
   // Listen for opponent joining
   useEffect(() => {
