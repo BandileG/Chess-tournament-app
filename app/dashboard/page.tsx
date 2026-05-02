@@ -193,7 +193,15 @@ export default function DashboardPage() {
           </div>
         </div>
       </div>
-
+{/* Play button */}
+<div className="px-5 mb-6">
+  <button
+    onClick={() => router.push('/play')}
+    className="w-full bg-gradient-to-r from-[#00d4ff] to-[#8b5cf6] text-black font-bold py-4 rounded-2xl text-base flex items-center justify-center gap-2 hover:opacity-90 transition-all shadow-[0_0_20px_rgba(0,212,255,0.4)] hover:shadow-[0_0_35px_rgba(0,212,255,0.7)] animate-pulse"
+  >
+    ♟ Play
+  </button>
+</div>
       <div className="px-5">
         <p className="text-gray-500 text-xs uppercase tracking-widest mb-4">Live Tournaments</p>
         <div className="flex flex-col gap-4">
