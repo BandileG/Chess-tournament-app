@@ -48,6 +48,7 @@ function MatchContent() {
   const [lastMove, setLastMove] = useState<{ from: string; to: string } | null>(null)
   const [moveHistory, setMoveHistory] = useState<string[]>([])
   const [opponentIsBot, setOpponentIsBot] = useState(false)
+const [selectedSquare, setSelectedSquare] = useState<string | null>(null)
   const timerRef = useRef<NodeJS.Timeout | null>(null)
   const botTimeoutRef = useRef<NodeJS.Timeout | null>(null)
   const makeBotMoveRef = useRef<((g: Chess) => void) | null>(null)
@@ -125,7 +126,62 @@ function MatchContent() {
   useEffect(() => {
     makeBotMoveRef.current = makeBotMove
   }, [makeBotMove])
+const handleSquareClick = useCallback((square: string) => {
+    if (!playerColor || !matchData) return
+    if (status === 'loading' || status === 'completed') return
+    if (game.turn() !== playerColor) return
 
+    if (selectedSquare) {
+      const newGame = new Chess(game.fen())
+      try {
+        const move = newGame.move({ from: selectedSquare, to: square, promotion: 'q' })
+        if (move) {
+          const saveMove = async () => {
+            await supabase.from('moves').insert({
+              match_id: matchData.id,
+              player_id: userId,
+              move_san: move.san,
+              move_uci: selectedSquare + square,
+              fen_after: newGame.fen(),
+              move_number: newGame.moveNumber(),
+              color: playerColor,
+              white_time_after: whiteTime,
+              black_time_after: blackTime
+            })
+            await supabase.from('matches').update({
+              current_fen: newGame.fen(),
+              move_count: newGame.moveNumber()
+            }).eq('id', matchData.id)
+          }
+          saveMove()
+          setGame(newGame)
+          setLastMove({ from: selectedSquare, to: square })
+          setMoveHistory(prev => [...prev, move.san])
+          setSelectedSquare(null)
+          if (newGame.isGameOver()) {
+            const result = newGame.isCheckmate()
+              ? (newGame.turn() === 'w' ? 'black' : 'white')
+              : 'draw'
+            const winnerId = newGame.isCheckmate()
+              ? (newGame.turn() === 'w' ? matchData.black_player_id : matchData.white_player_id)
+              : null
+            completeMatch(winnerId, result)
+            return
+          }
+          if (opponentIsBot) {
+            botTimeoutRef.current = setTimeout(() => makeBotMove(newGame), 1500)
+          }
+          return
+        }
+      } catch {}
+      setSelectedSquare(null)
+    } else {
+      const piece = game.get(square as any)
+      if (piece && piece.color === playerColor) {
+        setSelectedSquare(square)
+      }
+    }
+  }, [game, selectedSquare, playerColor, matchData, status, userId, whiteTime, blackTime, opponentIsBot, makeBotMove, completeMatch, supabase])
   const onDrop = useCallback((sourceSquare: string, targetSquare: string) => {
     if (!playerColor || !matchData) return false
     if (status === 'loading' || status === 'completed') return false
@@ -352,10 +408,14 @@ function MatchContent() {
             position={game.fen()}
             onPieceDrop={onDrop}
             boardOrientation={playerColor === 'w' ? 'white' : 'black'}
-            customSquareStyles={lastMove ? {
-              [lastMove.from]: { backgroundColor: 'rgba(0, 212, 255, 0.3)' },
-              [lastMove.to]: { backgroundColor: 'rgba(0, 212, 255, 0.3)' }
-            } : {}}
+            onSquareClick={handleSquareClick}
+customSquareStyles={{
+  ...(lastMove ? {
+    [lastMove.from]: { backgroundColor: 'rgba(0, 212, 255, 0.3)' },
+    [lastMove.to]: { backgroundColor: 'rgba(0, 212, 255, 0.3)' }
+  } : {}),
+  ...(selectedSquare ? { [selectedSquare]: { backgroundColor: 'rgba(0, 212, 255, 0.4)' } } : {})
+}}
           />
         </div>
 
