@@ -1,29 +1,38 @@
 export const dynamic = 'force-dynamic'
 
-import { createRouteHandlerClient } from '@supabase/auth-helpers-nextjs'
-import { cookies } from 'next/headers'
 import { NextResponse } from 'next/server'
 import { Chess } from 'chess.js'
 
-function getRandomMove(fen: string, level: number): string {
+function getBestMove(fen: string, level: number): string {
   const chess = new Chess(fen)
   const moves = chess.moves({ verbose: true })
   if (!moves.length) return ''
-  
-  // Higher level = smarter random selection
-  // For now returns a random legal move
-  const move = moves[Math.floor(Math.random() * moves.length)]
-  return move.from + move.to + (move.promotion || '')
+
+  const scored = moves.map(move => {
+    let score = Math.random() * (20 - level)
+    if (move.captured) score += 10
+    if (move.flags.includes('p')) score += 5
+    chess.move(move)
+    if (chess.isCheck()) score += 3
+    if (chess.isCheckmate()) score += 1000
+    chess.undo()
+    return { move, score }
+  })
+
+  scored.sort((a, b) => b.score - a.score)
+  const topN = Math.max(1, Math.floor(moves.length / level))
+  const best = scored.slice(0, topN)
+  const picked = best[Math.floor(Math.random() * best.length)]
+
+  const m = picked.move
+  return m.from + m.to + (m.promotion || '')
 }
 
 export async function POST(request: Request) {
   try {
-    const supabase = createRouteHandlerClient({ cookies })
-    const { game_id, fen, bot_level } = await request.json()
-
-    const uci = getRandomMove(fen, bot_level)
+    const { fen, bot_level } = await request.json()
+    const uci = getBestMove(fen, bot_level)
     if (!uci) return NextResponse.json({ error: 'No moves' }, { status: 400 })
-
     return NextResponse.json({ success: true, move: uci })
   } catch (err) {
     console.error('[BOT-MOVE]', err)
