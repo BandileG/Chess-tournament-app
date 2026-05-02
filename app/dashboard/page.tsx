@@ -267,9 +267,47 @@ function TournamentCard({ tournament: t, balance, userId }: {
   const canAfford = balance >= t.entry
   const [joining, setJoining] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [alreadyJoined, setAlreadyJoined] = useState(false)
+  const [joinedTournamentId, setJoinedTournamentId] = useState<string | null>(null)
+  const [dots, setDots] = useState('.')
   const router = useRouter()
 
+  // Animate dots
+  useEffect(() => {
+    if (!alreadyJoined) return
+    const interval = setInterval(() => {
+      setDots(prev => prev.length >= 3 ? '.' : prev + '.')
+    }, 500)
+    return () => clearInterval(interval)
+  }, [alreadyJoined])
+
+  // Check if user already in this tournament tier on mount
+  useEffect(() => {
+    if (!userId) return
+    const supabase = createClientComponentClient()
+    const checkJoined = async () => {
+      const { data } = await supabase
+        .from('tournament_players')
+        .select('tournament_id, tournaments(entry_fee, status)')
+        .eq('user_id', userId)
+        .eq('tournaments.entry_fee', t.entry)
+        .eq('tournaments.status', 'open')
+        .maybeSingle()
+
+      if (data?.tournament_id) {
+        setAlreadyJoined(true)
+        setJoinedTournamentId(data.tournament_id)
+      }
+    }
+    checkJoined()
+  }, [userId, t.entry])
+
   const handleJoin = async () => {
+    if (alreadyJoined && joinedTournamentId) {
+      router.push(`/tournament/queue?tournament_id=${joinedTournamentId}&position=1&needed=9`)
+      return
+    }
+
     if (!canAfford || joining) return
     setJoining(true)
     setError(null)
@@ -288,6 +326,9 @@ function TournamentCard({ tournament: t, balance, userId }: {
         setJoining(false)
         return
       }
+
+      setAlreadyJoined(true)
+      setJoinedTournamentId(data.tournament_id)
 
       router.push(
         `/tournament/queue?tournament_id=${data.tournament_id}&position=${data.queue_position}&needed=${data.players_needed}`
@@ -336,14 +377,16 @@ function TournamentCard({ tournament: t, balance, userId }: {
         </div>
         <button
           onClick={handleJoin}
-          disabled={!canAfford || joining}
+          disabled={!alreadyJoined && (!canAfford || joining)}
           className={`px-6 py-2 rounded-xl font-bold text-sm transition-all ${
-            canAfford
+            alreadyJoined
+              ? 'bg-[#1e2d3d] text-[#00d4ff] border border-[#00d4ff]'
+              : canAfford
               ? 'bg-[#00d4ff] hover:bg-[#00b8e0] text-black'
               : 'bg-[#1e2d3d] text-gray-600 cursor-not-allowed'
           }`}
         >
-          {joining ? 'Joining...' : canAfford ? `Join — $${t.entry}` : 'Fund Wallet'}
+          {alreadyJoined ? `Waiting${dots}` : joining ? 'Joining...' : canAfford ? `Join — $${t.entry}` : 'Fund Wallet'}
         </button>
       </div>
     </div>
