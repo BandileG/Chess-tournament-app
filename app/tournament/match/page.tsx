@@ -309,8 +309,15 @@ function MatchContent() {
     return (
       <div className="min-h-screen bg-[#080c10] flex items-center justify-center px-4">
         <div className="bg-[#0d1117] border border-[#1e2d3d] rounded-2xl p-8 text-center max-w-md w-full">
-          <h2 className="text-3xl font-bold text-white mb-4">Game Over</h2>
-          <p className="text-[#00d4ff] text-xl mb-6">{gameResult}</p>
+          <h2 className="text-3xl font-bold text-white mb-4">
+  {gameResult === 'draw' ? '🤝 Draw!' : 
+   (gameResult === 'white' && playerColor === 'w') || (gameResult === 'black' && playerColor === 'b') 
+   ? '🏆 You Won!' : '😔 You Lost'}
+</h2>
+<p className="text-[#00d4ff] text-xl mb-6">
+  {gameResult === 'draw' ? 'Game ended in a draw' : 
+   gameResult === 'timeout' ? 'Time ran out' : 'Checkmate'}
+</p>
           <button
             onClick={() => router.push('/dashboard')}
             className="w-full bg-[#00d4ff] text-black font-bold py-3 rounded-xl"
