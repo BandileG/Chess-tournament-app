@@ -81,19 +81,15 @@ export default function PlayPage() {
   }
 
   // Countdown timer
-  useEffect(() => {
-    if (!searching || countdown <= 0 || !gameId) return
-
-    if (countdown === 0) {
-      // Time up — start bot game
-      startBotGame()
-      return
-    }
-
-    const timer = setTimeout(() => setCountdown(prev => prev - 1), 1000)
-    return () => clearTimeout(timer)
-  }, [searching, countdown, gameId])
-
+ useEffect(() => {
+  if (!searching || !gameId) return
+  if (countdown === 0) {
+    startBotGame()
+    return
+  }
+  const timer = setTimeout(() => setCountdown(prev => prev - 1), 1000)
+  return () => clearTimeout(timer)
+}, [searching, countdown, gameId])
   // When countdown hits 0 start bot
   useEffect(() => {
     if (searching && countdown === 0 && gameId && searchTime > 0) {
