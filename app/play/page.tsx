@@ -50,8 +50,16 @@ export default function PlayPage() {
   const [gameId, setGameId] = useState<string | null>(null)
   const router = useRouter()
 
-  const startBotGame = async () => {
-    if (!gameId) return
+  const startBotGame = async (id: string) => {
+    const res = await fetch('/api/play/start-bot', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ game_id: id }),
+    })
+    if (res.ok) {
+      router.push(`/play/game?id=${id}&bot=true`)
+    }
+  }
     const res = await fetch('/api/play/start-bot', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -95,17 +103,21 @@ export default function PlayPage() {
 
   // Countdown timer
   useEffect(() => {
-    if (!searching || !gameId) return
+  if (!searching || !gameId) return
 
-    const interval = setInterval(() => {
-      setCountdown(prev => {
-        const next = prev + 1
-        if (next >= searchTime) {
-          startBotGame()
-        }
-        return next
-      })
-    }, 1000)
+  const id = gameId
+  const interval = setInterval(() => {
+    setCountdown(prev => {
+      const next = prev + 1
+      if (next >= searchTime) {
+        startBotGame(id)
+      }
+      return next
+    })
+  }, 1000)
+
+  return () => clearInterval(interval)
+}, [searching, gameId, searchTime])
 
     return () => clearInterval(interval)
   }, [searching, gameId, searchTime])
