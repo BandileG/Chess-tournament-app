@@ -1,0 +1,70 @@
+import { createRouteHandlerClient } from '@supabase/auth-helpers-nextjs'
+import { cookies } from 'next/headers'
+import { NextResponse } from 'next/server'
+
+export async function POST(request: Request) {
+  try {
+    const supabase = createRouteHandlerClient({ cookies })
+    const { data: { session } } = await supabase.auth.getSession()
+    if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+
+    const { time_control, increment } = await request.json()
+
+    // Get user ELO
+    const { data: user } = await supabase
+      .from('users')
+      .select('id, rating')
+      .eq('id', session.user.id)
+      .single()
+
+    if (!user) return NextResponse.json({ error: 'User not found' }, { status: 404 })
+
+    // Look for a waiting game with same time control
+    const { data: waitingGame } = await supabase
+      .from('casual_games')
+      .select('*')
+      .eq('status', 'waiting')
+      .eq('time_control', time_control)
+      .eq('increment', increment)
+      .neq('white_player_id', session.user.id)
+      .order('created_at', { ascending: true })
+      .limit(1)
+      .maybeSingle()
+
+    if (waitingGame) {
+      // Found a waiting game — join it as black
+      const { data: game } = await supabase
+        .from('casual_games')
+        .update({
+          black_player_id: session.user.id,
+          status: 'active',
+          started_at: new Date().toISOString(),
+        })
+        .eq('id', waitingGame.id)
+        .select()
+        .single()
+
+      return NextResponse.json({ success: true, data: { game, found: true } })
+    }
+
+    // No waiting game — create one and wait
+    const timeMs = time_control * 1000
+    const { data: newGame } = await supabase
+      .from('casual_games')
+      .insert({
+        white_player_id: session.user.id,
+        status: 'waiting',
+        time_control,
+        increment,
+        white_time_remaining: timeMs,
+        black_time_remaining: timeMs,
+      })
+      .select()
+      .single()
+
+    return NextResponse.json({ success: true, data: { game: newGame, found: false } })
+  } catch (err) {
+    console.error('[FIND-MATCH]', err)
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
+  }
+}
