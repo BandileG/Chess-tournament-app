@@ -287,12 +287,12 @@ function TournamentCard({ tournament: t, balance, userId }: {
     const supabase = createClientComponentClient()
     const checkJoined = async () => {
       const { data } = await supabase
-        .from('tournament_players')
-        .select('tournament_id, tournaments(entry_fee, status)')
-        .eq('user_id', userId)
-        .eq('tournaments.entry_fee', t.entry)
-        .eq('tournaments.status', 'open')
-        .maybeSingle()
+  .from('tournament_players')
+  .select('tournament_id, tournaments!inner(entry_fee, status)')
+  .eq('user_id', userId)
+  .eq('tournaments.entry_fee', t.entry)
+  .eq('tournaments.status', 'open')
+  .maybeSingle()
 
       if (data?.tournament_id) {
         setAlreadyJoined(true)
