@@ -1,3 +1,4 @@
+export const dynamic = 'force-dynamic'
 import { NextRequest, NextResponse } from 'next/server'
 
 const PAYPAL_API = 'https://api-m.sandbox.paypal.com'
