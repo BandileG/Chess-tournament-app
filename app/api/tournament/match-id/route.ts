@@ -1,4 +1,5 @@
 export const dynamic = 'force-dynamic'
+
 import { createRouteHandlerClient } from '@supabase/auth-helpers-nextjs'
 import { cookies } from 'next/headers'
 import { NextResponse } from 'next/server'
@@ -11,9 +12,9 @@ export async function GET(request: Request) {
     const user_id = searchParams.get('user_id')
 
     if (!tournament_id || !user_id) {
-   return NextResponse.json({ error: 'Missing params' }, { status: 400 })
+      return NextResponse.json({ error: 'Missing params' }, { status: 400 })
+    }
 
-    // Find the match this player is in
     const { data, error } = await supabase
       .from('matches')
       .select('id, round_number, white_player_id, black_player_id, status')
