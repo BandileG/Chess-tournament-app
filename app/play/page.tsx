@@ -29,7 +29,6 @@ let consecutiveCount = 0
 
 function getRandomSearchTime(): number {
   let candidates = SEARCH_TIMES
-  // Remove last value if used 3 times in a row
   if (lastSearchTime !== null && consecutiveCount >= 3) {
     candidates = SEARCH_TIMES.filter(t => t !== lastSearchTime)
   }
@@ -50,62 +49,66 @@ export default function PlayPage() {
   const [countdown, setCountdown] = useState(0)
   const [gameId, setGameId] = useState<string | null>(null)
   const router = useRouter()
-const startBotGame = async () => {
+
+  const startBotGame = async () => {
     if (!gameId) return
     const res = await fetch('/api/play/start-bot', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ game_id: gameId }),
     })
+    if (res.ok) {
+      router.push(`/play/game?id=${gameId}&bot=true`)
+    }
+  }
+
   const handlePlay = async () => {
     if (!selected) return
     setSearching(true)
 
-    // Call find-match API
     const res = await fetch('/api/play/find-match', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ time_control: selected.time, increment: selected.inc }),
     })
     const json = await res.json()
-if (!res.ok) { 
-  console.error('Find match error:', json)
-  alert(json.error || 'API error')
-  setSearching(false)
-  return 
-}
+    if (!res.ok) {
+      console.error('Find match error:', json)
+      alert(json.error || 'API error')
+      setSearching(false)
+      return
+    }
 
     const game = json.data.game
     const found = json.data.found
 
     if (found) {
-      // Joined existing game — go straight to game
       router.push(`/play/game?id=${game.id}`)
       return
     }
 
-    // Created new game — wait for opponent
     setGameId(game.id)
     const waitSeconds = getRandomSearchTime()
-setSearchTime(waitSeconds)
-setCountdown(0)
+    setSearchTime(waitSeconds)
+    setCountdown(0)
+  }
 
   // Countdown timer
- useEffect(() => {
-  if (!searching || !gameId) return
-  
-  const interval = setInterval(() => {
-    setCountdown(prev => {
-      const next = prev + 1
-      if (next >= searchTime) {
-        startBotGame()
-      }
-      return next
-    })
-  }, 1000)
+  useEffect(() => {
+    if (!searching || !gameId) return
 
-  return () => clearInterval(interval)
-}, [searching, gameId, searchTime])
+    const interval = setInterval(() => {
+      setCountdown(prev => {
+        const next = prev + 1
+        if (next >= searchTime) {
+          startBotGame()
+        }
+        return next
+      })
+    }, 1000)
+
+    return () => clearInterval(interval)
+  }, [searching, gameId, searchTime])
 
   // Listen for opponent joining
   useEffect(() => {
@@ -122,7 +125,6 @@ setCountdown(0)
       }, (payload) => {
         const updated = payload.new as { status: string; black_player_id: string }
         if (updated.status === 'active' && updated.black_player_id) {
-          // Real opponent joined!
           router.push(`/play/game?id=${gameId}`)
         }
       })
@@ -130,12 +132,6 @@ setCountdown(0)
 
     return () => { supabase.removeChannel(channel) }
   }, [gameId, searching])
-
-  
-    if (res.ok) {
-      router.push(`/play/game?id=${gameId}&bot=true`)
-    }
-  }
 
   const cancelSearch = async () => {
     if (gameId) {
@@ -150,7 +146,6 @@ setCountdown(0)
   return (
     <main className="min-h-screen bg-[#080c10] pb-24">
 
-      {/* Top bar */}
       <div className="flex items-center justify-between px-5 pt-6 pb-4">
         <button onClick={() => router.push('/dashboard')} className="text-gray-500 hover:text-white transition-colors">
           ← Back
@@ -169,7 +164,6 @@ setCountdown(0)
             <p className="text-gray-500 text-sm mt-1">Free practice — no entry fee</p>
           </div>
 
-          {/* Time control picker */}
           {TIME_CONTROLS.map(group => (
             <div key={group.label} className="px-5 mb-6">
               <p className="text-gray-500 text-xs uppercase tracking-widest mb-3">{group.label}</p>
@@ -206,7 +200,6 @@ setCountdown(0)
           </div>
         </>
       ) : (
-        // Searching screen
         <div className="flex flex-col items-center justify-center px-5 pt-20">
           <div className="relative mb-8">
             <div className="w-28 h-28 rounded-full border-4 border-[#1e2d3d] flex items-center justify-center">
@@ -218,7 +211,6 @@ setCountdown(0)
           <h2 className="text-white font-bold text-xl mb-2">Finding opponent...</h2>
           <p className="text-gray-500 text-sm mb-2">{selected?.display} · Free game</p>
 
-          {/* Countdown */}
           <div className="bg-[#0d1117] border border-[#1e2d3d] rounded-2xl px-8 py-4 mb-8 text-center">
             <p className="text-gray-500 text-xs mb-1">Searching</p>
             <p className="text-[#00d4ff] font-bold text-4xl font-mono">{countdown}s</p>
@@ -237,7 +229,6 @@ setCountdown(0)
         </div>
       )}
 
-      {/* Bottom nav */}
       <div className="fixed bottom-0 left-0 right-0 bg-[#0d1117] border-t border-[#1e2d3d] px-6 py-3 flex items-center justify-around">
         <NavItem icon="🏠" label="Dashboard" onClick={() => router.push('/dashboard')} />
         <NavItem icon="⚡" label="Play" active onClick={() => router.push('/play')} />
