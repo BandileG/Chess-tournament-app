@@ -111,7 +111,9 @@ function MatchContent() {
     setMoveHistory(prev => [...prev, move.san])
 
     if (newGame.isGameOver()) {
-      const result = newGame.isCheckmate() ? 'checkmate' : 'draw'
+      const result = newGame.isCheckmate() 
+  ? (newGame.turn() === 'w' ? 'black' : 'white') 
+  : 'draw'
       const winnerId = newGame.isCheckmate()
         ? (newGame.turn() === 'w' ? matchData!.black_player_id : matchData!.white_player_id)
         : null
@@ -169,12 +171,14 @@ function MatchContent() {
     setMoveHistory(prev => [...prev, move!.san])
 
     if (newGame.isGameOver()) {
-      const result = newGame.isCheckmate() ? 'checkmate' : 'draw'
-      const winnerId = newGame.isCheckmate()
-        ? (newGame.turn() === 'w' ? matchData.black_player_id : matchData.white_player_id)
-        : null
-      completeMatch(winnerId, result)
-      return true
+  const result = newGame.isCheckmate() 
+    ? (newGame.turn() === 'w' ? 'black' : 'white') 
+    : 'draw'
+  const winnerId = newGame.isCheckmate()
+    ? (newGame.turn() === 'w' ? matchData.black_player_id : matchData.white_player_id)
+    : null
+  completeMatch(winnerId, result)
+  return true
     }
 
     if (opponentIsBot) {
