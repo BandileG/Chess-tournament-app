@@ -1,8 +1,7 @@
 'use client'
-import { useEffect, useState } from 'react'
+import { useEffect, useState, Suspense } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { createClientComponentClient } from '@supabase/auth-helpers-nextjs'
-import { Suspense } from 'react'
 
 const AMOUNTS = [5, 10, 20, 50, 100]
 
@@ -11,14 +10,13 @@ function WalletContent() {
   const [username, setUsername] = useState('Player')
   const [selected, setSelected] = useState<number | null>(null)
   const [custom, setCustom] = useState('')
-  const [loading, setLoading] = useState<'paypal' | 'binance' | null>(null)
+  const [loading, setLoading] = useState<'paypal' | 'crypto' | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [success, setSuccess] = useState<string | null>(null)
   const router = useRouter()
   const searchParams = useSearchParams()
 
   useEffect(() => {
-    // Show success message if returning from Binance Pay
     const deposit = searchParams.get('deposit')
     if (deposit === 'success') setSuccess('Deposit successful! Balance updated.')
     if (deposit === 'cancelled') setError('Deposit cancelled.')
@@ -41,13 +39,9 @@ function WalletContent() {
   const depositAmount = selected || (custom ? parseFloat(custom) : 0)
 
   const handlePayPal = async () => {
-    if (!depositAmount || depositAmount < 5) {
-      setError('Minimum deposit is $5')
-      return
-    }
+    if (!depositAmount || depositAmount < 5) { setError('Minimum deposit is $5'); return }
     setLoading('paypal')
     setError(null)
-
     try {
       const res = await fetch('/api/paypal/create-order', {
         method: 'POST',
@@ -66,25 +60,21 @@ function WalletContent() {
     setLoading(null)
   }
 
-  const handleBinance = async () => {
-    if (!depositAmount || depositAmount < 5) {
-      setError('Minimum deposit is $5')
-      return
-    }
-    setLoading('binance')
+  const handleCrypto = async () => {
+    if (!depositAmount || depositAmount < 5) { setError('Minimum deposit is $5'); return }
+    setLoading('crypto')
     setError(null)
-
     try {
-      const res = await fetch('/api/binance/create-order', {
+      const res = await fetch('/api/nowpayments/create-order', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ amount: depositAmount }),
       })
       const data = await res.json()
-      if (data.checkoutUrl) {
-        window.location.href = data.checkoutUrl
+      if (data.invoiceUrl) {
+        window.location.href = data.invoiceUrl
       } else {
-        setError(data.error || 'Failed to create Binance Pay order. Try again.')
+        setError(data.error || 'Failed to create crypto payment. Try again.')
       }
     } catch {
       setError('Network error. Please try again.')
@@ -97,7 +87,7 @@ function WalletContent() {
 
       {/* Top bar */}
       <div className="flex items-center justify-between px-5 pt-6 pb-4">
-        <button onClick={() => router.push('/dashboard')} className="text-gray-400 text-sm flex items-center gap-2">
+        <button onClick={() => router.push('/dashboard')} className="text-gray-400 text-sm">
           ← Back
         </button>
         <h1 className="text-xl font-bold">
@@ -116,7 +106,6 @@ function WalletContent() {
           <p className="text-gray-600 text-xs mt-2">{username}'s wallet</p>
         </div>
 
-        {/* Deposit section */}
         <p className="text-gray-500 text-xs uppercase tracking-widest mb-4">Deposit Funds</p>
 
         {/* Quick amounts */}
@@ -186,14 +175,13 @@ function WalletContent() {
         {/* Payment buttons */}
         <div className="flex flex-col gap-3 mb-6">
 
-          {/* Binance Pay */}
+          {/* Crypto — NOWPayments */}
           <button
-            onClick={handleBinance}
+            onClick={handleCrypto}
             disabled={!depositAmount || depositAmount < 5 || !!loading}
-            className="w-full bg-[#F0B90B] hover:bg-[#d4a500] disabled:opacity-30 disabled:cursor-not-allowed text-black font-bold py-3 rounded-xl transition-colors text-sm flex items-center justify-center gap-2"
+            className="w-full bg-[#F7931A] hover:bg-[#e08210] disabled:opacity-30 disabled:cursor-not-allowed text-white font-bold py-3 rounded-xl transition-colors text-sm flex items-center justify-center gap-2"
           >
-            <span>⬡</span>
-            {loading === 'binance' ? 'Processing...' : `Deposit via Binance Pay${depositAmount >= 5 ? ` — $${depositAmount.toFixed(2)}` : ''}`}
+            ₿ {loading === 'crypto' ? 'Processing...' : `Deposit with Crypto${depositAmount >= 5 ? ` — $${depositAmount.toFixed(2)}` : ''}`}
           </button>
 
           {/* PayPal */}
@@ -205,23 +193,31 @@ function WalletContent() {
             {loading === 'paypal' ? 'Processing...' : `Deposit via PayPal${depositAmount >= 5 ? ` — $${depositAmount.toFixed(2)}` : ''}`}
           </button>
 
+          {/* PayFast — coming soon */}
+          <button
+            disabled
+            className="w-full bg-[#0d1117] border border-[#1e2d3d] text-gray-600 font-bold py-3 rounded-xl text-sm cursor-not-allowed"
+          >
+            💳 Mastercard / Visa — Coming Soon
+          </button>
+
         </div>
 
-        {/* Crypto note */}
-        <div className="bg-[#F0B90B]/10 border border-[#F0B90B]/20 rounded-xl px-4 py-3 mb-6 flex items-start gap-3">
-          <span className="text-[#F0B90B] text-lg mt-0.5">⬡</span>
+        {/* Crypto info */}
+        <div className="bg-[#F7931A]/10 border border-[#F7931A]/20 rounded-xl px-4 py-3 mb-6 flex items-start gap-3">
+          <span className="text-[#F7931A] text-lg mt-0.5">₿</span>
           <div>
-            <p className="text-[#F0B90B] text-xs font-semibold mb-1">Binance Pay accepts USDT</p>
+            <p className="text-[#F7931A] text-xs font-semibold mb-1">Crypto deposits accepted</p>
             <p className="text-gray-400 text-xs">
-              Pay instantly using USDT, BNB, or any supported Binance asset. No fees. Instant credit.
+              Pay with USDT, BTC, ETH and 100+ cryptocurrencies. Instant credit. 0.5% fee.
             </p>
           </div>
         </div>
 
-        {/* Withdraw section */}
+        {/* Withdraw */}
         <div className="bg-[#0d1117] border border-[#1e2d3d] rounded-2xl p-5 mt-2">
           <p className="text-white font-bold text-sm mb-1">Withdraw Funds</p>
-          <p className="text-gray-500 text-xs mb-4">Withdraw your winnings to PayPal or Binance</p>
+          <p className="text-gray-500 text-xs mb-4">Withdraw your winnings to PayPal or crypto wallet</p>
           <button
             onClick={() => router.push('/wallet/withdraw')}
             className="w-full border border-[#1e2d3d] hover:border-[#00d4ff] text-white font-bold py-3 rounded-xl transition-colors text-sm"
