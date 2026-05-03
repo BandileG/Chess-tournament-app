@@ -48,7 +48,8 @@ function MatchContent() {
   const [lastMove, setLastMove] = useState<{ from: string; to: string } | null>(null)
   const [moveHistory, setMoveHistory] = useState<string[]>([])
   const [opponentIsBot, setOpponentIsBot] = useState(false)
-const [selectedSquare, setSelectedSquare] = useState<string | null>(null)
+  const [selectedSquare, setSelectedSquare] = useState<string | null>(null)
+
   const timerRef = useRef<NodeJS.Timeout | null>(null)
   const botTimeoutRef = useRef<NodeJS.Timeout | null>(null)
   const makeBotMoveRef = useRef<((g: Chess) => void) | null>(null)
@@ -112,9 +113,9 @@ const [selectedSquare, setSelectedSquare] = useState<string | null>(null)
     setMoveHistory(prev => [...prev, move.san])
 
     if (newGame.isGameOver()) {
-      const result = newGame.isCheckmate() 
-  ? (newGame.turn() === 'w' ? 'black' : 'white') 
-  : 'draw'
+      const result = newGame.isCheckmate()
+        ? (newGame.turn() === 'w' ? 'black' : 'white')
+        : 'draw'
       const winnerId = newGame.isCheckmate()
         ? (newGame.turn() === 'w' ? matchData!.black_player_id : matchData!.white_player_id)
         : null
@@ -122,11 +123,11 @@ const [selectedSquare, setSelectedSquare] = useState<string | null>(null)
     }
   }, [matchData, userId, whiteTime, blackTime, completeMatch, supabase])
 
-  // Keep ref in sync so init can call it
   useEffect(() => {
     makeBotMoveRef.current = makeBotMove
   }, [makeBotMove])
-const handleSquareClick = useCallback((square: string) => {
+
+  const handleSquareClick = useCallback((square: string) => {
     if (!playerColor || !matchData) return
     if (status === 'loading' || status === 'completed') return
     if (game.turn() !== playerColor) return
@@ -182,6 +183,7 @@ const handleSquareClick = useCallback((square: string) => {
       }
     }
   }, [game, selectedSquare, playerColor, matchData, status, userId, whiteTime, blackTime, opponentIsBot, makeBotMove, completeMatch, supabase])
+
   const onDrop = useCallback((sourceSquare: string, targetSquare: string) => {
     if (!playerColor || !matchData) return false
     if (status === 'loading' || status === 'completed') return false
@@ -191,11 +193,7 @@ const handleSquareClick = useCallback((square: string) => {
     let move = null
 
     try {
-      move = newGame.move({
-        from: sourceSquare,
-        to: targetSquare,
-        promotion: 'q'
-      })
+      move = newGame.move({ from: sourceSquare, to: targetSquare, promotion: 'q' })
     } catch {
       return false
     }
@@ -214,7 +212,6 @@ const handleSquareClick = useCallback((square: string) => {
         white_time_after: whiteTime,
         black_time_after: blackTime
       })
-
       await supabase.from('matches').update({
         current_fen: newGame.fen(),
         move_count: newGame.moveNumber()
@@ -227,14 +224,14 @@ const handleSquareClick = useCallback((square: string) => {
     setMoveHistory(prev => [...prev, move!.san])
 
     if (newGame.isGameOver()) {
-  const result = newGame.isCheckmate() 
-    ? (newGame.turn() === 'w' ? 'black' : 'white') 
-    : 'draw'
-  const winnerId = newGame.isCheckmate()
-    ? (newGame.turn() === 'w' ? matchData.black_player_id : matchData.white_player_id)
-    : null
-  completeMatch(winnerId, result)
-  return true
+      const result = newGame.isCheckmate()
+        ? (newGame.turn() === 'w' ? 'black' : 'white')
+        : 'draw'
+      const winnerId = newGame.isCheckmate()
+        ? (newGame.turn() === 'w' ? matchData.black_player_id : matchData.white_player_id)
+        : null
+      completeMatch(winnerId, result)
+      return true
     }
 
     if (opponentIsBot) {
@@ -244,59 +241,43 @@ const handleSquareClick = useCallback((square: string) => {
     return true
   }, [game, playerColor, matchData, status, userId, whiteTime, blackTime, opponentIsBot, makeBotMove, completeMatch, supabase])
 
+  // ─── Init ─────────────────────────────────────────────────────────────────
   useEffect(() => {
-const init = async () => {
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) { router.push('/login'); return }
-  setUserId(user.id)
+    const init = async () => {
+      const { data: { user } } = await supabase.auth.getUser()
+      if (!user) { router.push('/login'); return }
+      setUserId(user.id)
 
-  const { data: match } = await supabase
-    .from('matches')
-    .select('*')
-    .eq('id', matchId)
-    .single()
+      const { data: match } = await supabase
+        .from('matches')
+        .select('*')
+        .eq('id', matchId)
+        .single()
 
-  if (!match) return
-  setMatchData(match)
+      if (!match) return
+      setMatchData(match)
 
-  const color = match.white_player_id === user.id ? 'w' : 'b'
-  setPlayerColor(color)
+      const color = match.white_player_id === user.id ? 'w' : 'b'
+      setPlayerColor(color)
 
-  const opponentId = match.white_player_id === user.id
-    ? match.black_player_id
-    : match.white_player_id
+      const opponentId = match.white_player_id === user.id
+        ? match.black_player_id
+        : match.white_player_id
 
-  setOpponentIsBot(isBot(opponentId))
-  setOpponent({ id: opponentId, username: isBot(opponentId) ? 'Bot' : 'Opponent', rating: 1200 })
+      setOpponentIsBot(isBot(opponentId))
+      setOpponent({
+        id: opponentId,
+        username: isBot(opponentId) ? 'Bot' : 'Opponent',
+        rating: 1200
+      })
 
-  const { data: myProfile } = await supabase
-    .from('profiles')
-    .select('id, username')
-    .eq('id', user.id)
-    .single()
+      const { data: myProfile } = await supabase
+        .from('profiles')
+        .select('id, username')
+        .eq('id', user.id)
+        .single()
 
-  if (myProfile) setMyInfo({ ...myProfile, rating: 1200 })
-
-  const loadedGame = match.current_fen
-    ? new Chess(match.current_fen)
-    : new Chess()
-
-  setGame(loadedGame)
-  setWhiteTime(match.white_time_remaining)
-  setBlackTime(match.black_time_remaining)
-  setStatus(match.status === 'completed' ? 'completed' : 'active')
-
-  if (color === 'b' && isBot(opponentId)) {
-    botTimeoutRef.current = setTimeout(() => {
-      makeBotMoveRef.current?.(loadedGame)
-    }, 1500)
-  }
-}
-
-      const me = profiles?.find(p => p.id === user.id)
-const opp = profiles?.find(p => p.id === opponentId)
-if (me) setMyInfo({ ...me, rating: 1200 })
-setOpponent({ id: opponentId, username: opp?.username ?? 'Opponent', rating: 1200 })
+      if (myProfile) setMyInfo({ ...myProfile, rating: 1200 })
 
       const loadedGame = match.current_fen
         ? new Chess(match.current_fen)
@@ -307,8 +288,7 @@ setOpponent({ id: opponentId, username: opp?.username ?? 'Opponent', rating: 120
       setBlackTime(match.black_time_remaining)
       setStatus(match.status === 'completed' ? 'completed' : 'active')
 
-      // If player is black and opponent is bot, trigger bot's first move
-      if (color === 'b' && botOpponent) {
+      if (color === 'b' && isBot(opponentId)) {
         botTimeoutRef.current = setTimeout(() => {
           makeBotMoveRef.current?.(loadedGame)
         }, 1500)
@@ -318,6 +298,7 @@ setOpponent({ id: opponentId, username: opp?.username ?? 'Opponent', rating: 120
     if (matchId) init()
   }, [matchId, supabase, router])
 
+  // ─── Timer ────────────────────────────────────────────────────────────────
   useEffect(() => {
     if (status !== 'active') return
 
@@ -338,6 +319,7 @@ setOpponent({ id: opponentId, username: opp?.username ?? 'Opponent', rating: 120
     return () => { timerRef.current && clearInterval(timerRef.current) }
   }, [status, game, matchData, completeMatch])
 
+  // ─── Realtime ─────────────────────────────────────────────────────────────
   useEffect(() => {
     if (!matchId) return
 
@@ -351,8 +333,7 @@ setOpponent({ id: opponentId, username: opp?.username ?? 'Opponent', rating: 120
       }, (payload) => {
         const updated = payload.new as MatchData
         if (updated.current_fen) {
-          const syncedGame = new Chess(updated.current_fen)
-          setGame(syncedGame)
+          setGame(new Chess(updated.current_fen))
         }
         if (updated.status === 'completed') {
           setStatus('completed')
@@ -383,14 +364,14 @@ setOpponent({ id: opponentId, username: opp?.username ?? 'Opponent', rating: 120
       <div className="min-h-screen bg-[#080c10] flex items-center justify-center px-4">
         <div className="bg-[#0d1117] border border-[#1e2d3d] rounded-2xl p-8 text-center max-w-md w-full">
           <h2 className="text-3xl font-bold text-white mb-4">
-  {gameResult === 'draw' ? '🤝 Draw!' : 
-   (gameResult === 'white' && playerColor === 'w') || (gameResult === 'black' && playerColor === 'b') 
-   ? '🏆 You Won!' : '😔 You Lost'}
-</h2>
-<p className="text-[#00d4ff] text-xl mb-6">
-  {gameResult === 'draw' ? 'Game ended in a draw' : 
-   gameResult === 'timeout' ? 'Time ran out' : 'Checkmate'}
-</p>
+            {gameResult === 'draw' ? '🤝 Draw!' :
+              (gameResult === 'white' && playerColor === 'w') || (gameResult === 'black' && playerColor === 'b')
+                ? '🏆 You Won!' : '😔 You Lost'}
+          </h2>
+          <p className="text-[#00d4ff] text-xl mb-6">
+            {gameResult === 'draw' ? 'Game ended in a draw' :
+              gameResult === 'timeout' ? 'Time ran out' : 'Checkmate'}
+          </p>
           <button
             onClick={() => router.push('/dashboard')}
             className="w-full bg-[#00d4ff] text-black font-bold py-3 rounded-xl"
@@ -426,13 +407,13 @@ setOpponent({ id: opponentId, username: opp?.username ?? 'Opponent', rating: 120
             onPieceDrop={onDrop}
             boardOrientation={playerColor === 'w' ? 'white' : 'black'}
             onSquareClick={handleSquareClick}
-customSquareStyles={{
-  ...(lastMove ? {
-    [lastMove.from]: { backgroundColor: 'rgba(0, 212, 255, 0.3)' },
-    [lastMove.to]: { backgroundColor: 'rgba(0, 212, 255, 0.3)' }
-  } : {}),
-  ...(selectedSquare ? { [selectedSquare]: { backgroundColor: 'rgba(0, 212, 255, 0.4)' } } : {})
-}}
+            customSquareStyles={{
+              ...(lastMove ? {
+                [lastMove.from]: { backgroundColor: 'rgba(0, 212, 255, 0.3)' },
+                [lastMove.to]: { backgroundColor: 'rgba(0, 212, 255, 0.3)' }
+              } : {}),
+              ...(selectedSquare ? { [selectedSquare]: { backgroundColor: 'rgba(0, 212, 255, 0.4)' } } : {})
+            }}
           />
         </div>
 
