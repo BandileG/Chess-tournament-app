@@ -42,6 +42,14 @@ function getRandomSearchTime(): number {
   return picked
 }
 
+const SEARCH_MESSAGES = [
+  'Looking for a worthy opponent...',
+  'Scanning active players...',
+  'Matching by skill level...',
+  'Almost there...',
+  'Connecting you now...',
+]
+
 export default function PlayPage() {
   const [selected, setSelected] = useState<{ time: number; inc: number; display: string } | null>(null)
   const [searching, setSearching] = useState(false)
@@ -49,6 +57,7 @@ export default function PlayPage() {
   const [countdown, setCountdown] = useState(0)
   const [gameId, setGameId] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
+  const [searchMsg, setSearchMsg] = useState(SEARCH_MESSAGES[0])
   const router = useRouter()
 
   const startBotGame = async (id: string) => {
@@ -92,6 +101,17 @@ export default function PlayPage() {
     setSearchTime(waitSeconds)
     setCountdown(0)
   }
+
+  // Rotate search messages
+  useEffect(() => {
+    if (!searching) return
+    let i = 0
+    const interval = setInterval(() => {
+      i = (i + 1) % SEARCH_MESSAGES.length
+      setSearchMsg(SEARCH_MESSAGES[i])
+    }, 2000)
+    return () => clearInterval(interval)
+  }, [searching])
 
   // Countdown timer
   useEffect(() => {
@@ -219,13 +239,9 @@ export default function PlayPage() {
           <p className="text-gray-500 text-sm mb-2">{selected?.display} · Free game</p>
 
           <div className="bg-[#0d1117] border border-[#1e2d3d] rounded-2xl px-8 py-4 mb-8 text-center">
-            <p className="text-gray-500 text-xs mb-1">Searching</p>
+            <p className="text-gray-500 text-xs mb-1 animate-pulse">{searchMsg}</p>
             <p className="text-[#00d4ff] font-bold text-4xl font-mono">{countdown}s</p>
           </div>
-
-          <p className="text-gray-600 text-xs mb-6">
-            No opponent found? Stockfish steps in instantly
-          </p>
 
           <button
             onClick={cancelSearch}
