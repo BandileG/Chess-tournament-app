@@ -322,7 +322,7 @@ function TournamentCard({ tournament: t, balance, userId }: {
     <div className="bg-[#0d1117] border border-[#1e2d3d] rounded-2xl p-5">
       <div className="flex items-start justify-between mb-3">
         <div>
-          <p className="text-white font-bold text-sm">{t.name}</p>
+    <p className="text-white font-bold text-base">{t.name}</p>
           <p className={`text-xs mt-0.5 ${t.tierColor}`}>{t.tier}</p>
         </div>
         <div className="text-right">
