@@ -274,12 +274,10 @@ const handleSquareClick = useCallback((square: string) => {
         .select('id, username')
         .in('id', [user.id, opponentId])
 
-      if (profiles) {
-        const me = profiles.find(p => p.id === user.id)
-        const opp = profiles.find(p => p.id === opponentId)
-        if (me) setMyInfo({ ...me, rating: 1200 })
-        if (opp) setOpponent({ ...opp, rating: 1200 })
-      }
+      const me = profiles?.find(p => p.id === user.id)
+const opp = profiles?.find(p => p.id === opponentId)
+if (me) setMyInfo({ ...me, rating: 1200 })
+setOpponent({ id: opponentId, username: opp?.username ?? 'Opponent', rating: 1200 })
 
       const loadedGame = match.current_fen
         ? new Chess(match.current_fen)
