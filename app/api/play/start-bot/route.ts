@@ -21,11 +21,12 @@ export async function POST(request: Request) {
     const userElo = user?.rating ?? 800
     const bot = getBotForElo(userElo)
 
-    const { data: game } = await supabase
+    const { data: game, error } = await supabase
       .from('casual_games')
       .update({
         status: 'active',
         is_vs_bot: true,
+        black_player_id: session.user.id,
         bot_level: bot.stockfishLevel,
         bot_id: bot.id,
         bot_name: bot.name,
@@ -36,11 +37,13 @@ export async function POST(request: Request) {
         started_at: new Date().toISOString(),
       })
       .eq('id', game_id)
-      .eq('white_player_id', session.user.id)
       .select()
       .single()
 
-    if (!game) return NextResponse.json({ error: 'Game not found' }, { status: 404 })
+    if (error || !game) {
+      console.error('[START-BOT] update error:', error)
+      return NextResponse.json({ error: 'Game not found' }, { status: 404 })
+    }
 
     return NextResponse.json({
       success: true,
@@ -50,4 +53,4 @@ export async function POST(request: Request) {
     console.error('[START-BOT]', err)
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
-} 
+}
