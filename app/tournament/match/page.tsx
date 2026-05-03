@@ -245,34 +245,53 @@ const handleSquareClick = useCallback((square: string) => {
   }, [game, playerColor, matchData, status, userId, whiteTime, blackTime, opponentIsBot, makeBotMove, completeMatch, supabase])
 
   useEffect(() => {
-    const init = async () => {
-      const { data: { user } } = await supabase.auth.getUser()
-      if (!user) { router.push('/login'); return }
-      setUserId(user.id)
+const init = async () => {
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) { router.push('/login'); return }
+  setUserId(user.id)
 
-      const { data: match } = await supabase
-        .from('matches')
-        .select('*')
-        .eq('id', matchId)
-        .single()
+  const { data: match } = await supabase
+    .from('matches')
+    .select('*')
+    .eq('id', matchId)
+    .single()
 
-      if (!match) return
-      setMatchData(match)
+  if (!match) return
+  setMatchData(match)
 
-      const color = match.white_player_id === user.id ? 'w' : 'b'
-      setPlayerColor(color)
+  const color = match.white_player_id === user.id ? 'w' : 'b'
+  setPlayerColor(color)
 
-      const opponentId = match.white_player_id === user.id
-        ? match.black_player_id
-        : match.white_player_id
+  const opponentId = match.white_player_id === user.id
+    ? match.black_player_id
+    : match.white_player_id
 
-      const botOpponent = isBot(opponentId)
-      setOpponentIsBot(botOpponent)
+  setOpponentIsBot(isBot(opponentId))
+  setOpponent({ id: opponentId, username: isBot(opponentId) ? 'Bot' : 'Opponent', rating: 1200 })
 
-      const { data: profiles } = await supabase
-        .from('profiles')
-        .select('id, username')
-        .in('id', [user.id, opponentId])
+  const { data: myProfile } = await supabase
+    .from('profiles')
+    .select('id, username')
+    .eq('id', user.id)
+    .single()
+
+  if (myProfile) setMyInfo({ ...myProfile, rating: 1200 })
+
+  const loadedGame = match.current_fen
+    ? new Chess(match.current_fen)
+    : new Chess()
+
+  setGame(loadedGame)
+  setWhiteTime(match.white_time_remaining)
+  setBlackTime(match.black_time_remaining)
+  setStatus(match.status === 'completed' ? 'completed' : 'active')
+
+  if (color === 'b' && isBot(opponentId)) {
+    botTimeoutRef.current = setTimeout(() => {
+      makeBotMoveRef.current?.(loadedGame)
+    }, 1500)
+  }
+}
 
       const me = profiles?.find(p => p.id === user.id)
 const opp = profiles?.find(p => p.id === opponentId)
