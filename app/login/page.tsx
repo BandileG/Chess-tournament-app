@@ -28,7 +28,18 @@ export default function LoginPage() {
       setError(error.message)
       setLoading(false)
     } else {
-      router.push('/onboarding/level')
+      const { data: { user } } = await supabase.auth.getUser()
+const { data: userData } = await supabase
+  .from('users')
+  .select('onboarded')
+  .eq('id', user?.id ?? '')
+  .single()
+
+if (userData?.onboarded) {
+  router.push('/dashboard')
+} else {
+  router.push('/onboarding/level')
+}
     }
   }
 
