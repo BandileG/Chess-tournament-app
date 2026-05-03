@@ -21,6 +21,7 @@ function GameContent() {
   const [isVsBot, setIsVsBot] = useState(false)
   const [botLevel, setBotLevel] = useState(5)
   const [botProfile, setBotProfile] = useState<BotProfile | null>(null)
+  const [gameOpeningIndex, setGameOpeningIndex] = useState(0)
   const [thinkingMsg, setThinkingMsg] = useState('is thinking...')
   const [playerColor, setPlayerColor] = useState<'white' | 'black'>('white')
   const [userId, setUserId] = useState<string | null>(null)
@@ -28,15 +29,19 @@ function GameContent() {
   const [myName, setMyName] = useState('You')
   const [whiteTime, setWhiteTime] = useState(300)
   const [blackTime, setBlackTime] = useState(300)
+  const [totalTime, setTotalTime] = useState(300)
   const [status, setStatus] = useState<'playing' | 'finished'>('playing')
   const [result, setResult] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
   const [botThinking, setBotThinking] = useState(false)
   const [selectedSquare, setSelectedSquare] = useState<string | null>(null)
   const [moveNumber, setMoveNumber] = useState(1)
+  const [lastBotMove, setLastBotMove] = useState<{ from: string; to: string } | null>(null)
+  const [showResignConfirm, setShowResignConfirm] = useState(false)
   const router = useRouter()
   const searchParams = useSearchParams()
   const moveStartRef = useRef<number>(Date.now())
+  const gameOverCalledRef = useRef(false)
 
   // Rotate thinking messages
   useEffect(() => {
@@ -79,6 +84,7 @@ function GameContent() {
         setPlayerColor(isWhite ? 'white' : 'black')
         setIsVsBot(data.is_vs_bot)
         if (data.bot_level) setBotLevel(data.bot_level)
+        if (data.game_opening_index != null) setGameOpeningIndex(data.game_opening_index)
 
         if (data.is_vs_bot && data.bot_name) {
           setBotProfile({
@@ -103,8 +109,12 @@ function GameContent() {
           setMoveNumber(Math.ceil(g.history().length / 2) + 1)
         }
 
-        setWhiteTime(Math.floor(data.white_time_remaining / 1000))
-        setBlackTime(Math.floor(data.black_time_remaining / 1000))
+        const wTime = Math.floor(data.white_time_remaining / 1000)
+        const bTime = Math.floor(data.black_time_remaining / 1000)
+        const tTime = Math.floor(data.time_control)
+        setWhiteTime(wTime)
+        setBlackTime(bTime)
+        setTotalTime(tTime)
 
         if (data.status === 'completed') {
           setStatus('finished')
@@ -153,32 +163,57 @@ function GameContent() {
     return () => { supabase.removeChannel(channel) }
   }, [gameId, userId])
 
-  // Timer
+  // ── TIMER — correct winner on timeout ──
   useEffect(() => {
     if (status === 'finished') return
     const interval = setInterval(() => {
       const isWhiteTurn = game.turn() === 'w'
       if (isWhiteTurn) {
         setWhiteTime(prev => {
-          if (prev <= 1) { handleGameOver(null, 'timeout'); return 0 }
+          if (prev <= 1) {
+            // White ran out of time
+            if (playerColor === 'white') {
+              // I am white — I lose
+              handleGameOver(null, 'timeout', 'opponent_wins')
+            } else {
+              // Bot is white — bot loses, I win
+              handleGameOver(userId, 'timeout', 'you_win')
+            }
+            return 0
+          }
           return prev - 1
         })
       } else {
         setBlackTime(prev => {
-          if (prev <= 1) { handleGameOver(null, 'timeout'); return 0 }
+          if (prev <= 1) {
+            // Black ran out of time
+            if (playerColor === 'black') {
+              // I am black — I lose
+              handleGameOver(null, 'timeout', 'opponent_wins')
+            } else {
+              // Bot is black — bot loses, I win
+              handleGameOver(userId, 'timeout', 'you_win')
+            }
+            return 0
+          }
           return prev - 1
         })
       }
     }, 1000)
     return () => clearInterval(interval)
-  }, [game, status])
+  }, [game, status, playerColor, userId])
 
-  // Bot move
+  // ── BOT MOVE ──
   const makeBotMove = useCallback(async (currentGame: Chess) => {
-    if (status === 'finished') return
+    if (status === 'finished' || gameOverCalledRef.current) return
     setBotThinking(true)
 
     try {
+      // Get current clock times in ms
+      const botIsBlack = playerColor === 'white'
+      const botTimeMs = botIsBlack ? blackTime * 1000 : whiteTime * 1000
+      const userTimeMs = botIsBlack ? whiteTime * 1000 : blackTime * 1000
+
       const res = await fetch('/api/play/bot-move', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -188,10 +223,22 @@ function GameContent() {
           bot_level: botLevel,
           bot_id: botProfile?.id,
           move_number: moveNumber,
+          bot_time_ms: botTimeMs,
+          user_time_ms: userTimeMs,
+          total_time_ms: totalTime * 1000,
+          game_opening_index: gameOpeningIndex,
         }),
       })
       const data = await res.json()
-      if (!data.success) { setBotThinking(false); return }
+      setBotThinking(false)
+
+      if (!data.success) return
+
+      // ── Bot resigned ──
+      if (data.resign) {
+        handleGameOver(userId, 'resign', 'you_win')
+        return
+      }
 
       const uci = data.move
       const from = uci.slice(0, 2)
@@ -200,20 +247,24 @@ function GameContent() {
 
       const gameCopy = new Chess(currentGame.fen())
       const move = gameCopy.move({ from, to, promotion })
-      if (!move) { setBotThinking(false); return }
+      if (!move) return
 
-      setBotThinking(false)
+      // Highlight bot's move on board
+      setLastBotMove({ from, to })
+      setTimeout(() => setLastBotMove(null), 1500)
+
       setGame(gameCopy)
       setMoveNumber(prev => prev + 1)
       saveMove(gameCopy, move.san, uci, 'black', 0)
 
       if (gameCopy.isGameOver()) {
-        handleGameOver(gameCopy.isCheckmate() ? userId : null, 'checkmate')
+        if (gameCopy.isCheckmate()) handleGameOver(null, 'checkmate', 'opponent_wins')
+        else handleGameOver(null, 'draw', 'draw')
       }
     } catch {
       setBotThinking(false)
     }
-  }, [botLevel, status, userId, gameId, botProfile, moveNumber])
+  }, [botLevel, status, userId, gameId, botProfile, moveNumber, whiteTime, blackTime, totalTime, gameOpeningIndex, playerColor])
 
   // Trigger bot move
   useEffect(() => {
@@ -245,11 +296,16 @@ function GameContent() {
     })
   }
 
-  const handleGameOver = async (winnerId: string | null, reason: string) => {
-    if (status === 'finished') return
+  const handleGameOver = async (
+    winnerId: string | null,
+    reason: string,
+    resultLabel: string
+  ) => {
+    if (gameOverCalledRef.current) return
+    gameOverCalledRef.current = true
     setStatus('finished')
-    const isWinner = winnerId === userId
-    setResult(isWinner ? 'you_win' : winnerId === null ? 'draw' : 'you_lose')
+    setResult(resultLabel)
+    setShowResignConfirm(false)
     if (gameId) {
       const supabase = createClientComponentClient()
       await supabase.from('casual_games').update({
@@ -259,6 +315,11 @@ function GameContent() {
         ended_at: new Date().toISOString(),
       }).eq('id', gameId)
     }
+  }
+
+  // ── PLAYER RESIGN ──
+  const handlePlayerResign = async () => {
+    handleGameOver(null, 'resign', 'you_lose')
   }
 
   const handleSquareClick = useCallback((square: string) => {
@@ -279,8 +340,8 @@ function GameContent() {
           setSelectedSquare(null)
           saveMove(gameCopy, move.san, selectedSquare + square, playerColor, timeSpent)
           if (gameCopy.isGameOver()) {
-            if (gameCopy.isCheckmate()) handleGameOver(userId, 'checkmate')
-            else handleGameOver(null, 'draw')
+            if (gameCopy.isCheckmate()) handleGameOver(userId, 'checkmate', 'you_win')
+            else handleGameOver(null, 'draw', 'draw')
           }
           return
         }
@@ -317,8 +378,8 @@ function GameContent() {
     saveMove(gameCopy, move.san, sourceSquare + targetSquare, playerColor, timeSpent)
 
     if (gameCopy.isGameOver()) {
-      if (gameCopy.isCheckmate()) handleGameOver(userId, 'checkmate')
-      else handleGameOver(null, 'draw')
+      if (gameCopy.isCheckmate()) handleGameOver(userId, 'checkmate', 'you_win')
+      else handleGameOver(null, 'draw', 'draw')
     }
 
     return true
@@ -343,6 +404,18 @@ function GameContent() {
   const myTime = playerColor === 'white' ? whiteTime : blackTime
   const oppTime = playerColor === 'white' ? blackTime : whiteTime
 
+  // Bot move highlight squares
+  const botMoveHighlight = lastBotMove
+    ? {
+        [lastBotMove.from]: { backgroundColor: 'rgba(255, 210, 0, 0.35)' },
+        [lastBotMove.to]: { backgroundColor: 'rgba(255, 210, 0, 0.55)' },
+      }
+    : {}
+
+  const selectedHighlight = selectedSquare
+    ? { [selectedSquare]: { backgroundColor: 'rgba(0, 212, 255, 0.4)' } }
+    : {}
+
   return (
     <main className="min-h-screen bg-[#080c10] flex flex-col">
 
@@ -352,20 +425,31 @@ function GameContent() {
           <span className="text-[#00d4ff]">BLITZ</span>
           <span className="text-white">STAKE</span>
         </h1>
-        <div className={`px-3 py-1 rounded-full text-xs font-bold ${
-          status === 'finished' ? 'bg-gray-500/20 text-gray-400'
-          : isMyTurn ? 'bg-green-500/20 text-green-400'
-          : botThinking ? 'bg-yellow-500/20 text-yellow-400'
-          : 'bg-yellow-500/20 text-yellow-400'
-        }`}>
-          {status === 'finished' ? 'Game Over'
-            : botThinking ? `Opponent ${thinkingMsg}`
-            : isMyTurn ? 'Your Turn ♟'
-            : "Opponent's Turn"}
+        <div className="flex items-center gap-2">
+          <div className={`px-3 py-1 rounded-full text-xs font-bold ${
+            status === 'finished' ? 'bg-gray-500/20 text-gray-400'
+            : isMyTurn ? 'bg-green-500/20 text-green-400'
+            : botThinking ? 'bg-yellow-500/20 text-yellow-400'
+            : 'bg-yellow-500/20 text-yellow-400'
+          }`}>
+            {status === 'finished' ? 'Game Over'
+              : botThinking ? `Opponent ${thinkingMsg}`
+              : isMyTurn ? 'Your Turn ♟'
+              : "Opponent's Turn"}
+          </div>
+          {/* Resign button */}
+          {status === 'playing' && (
+            <button
+              onClick={() => setShowResignConfirm(true)}
+              className="px-3 py-1 rounded-full text-xs font-bold bg-red-500/10 text-red-400 hover:bg-red-500/20 transition-colors"
+            >
+              Resign
+            </button>
+          )}
         </div>
       </div>
 
-      {/* Opponent bar — looks like a real human */}
+      {/* Opponent bar */}
       <div className="px-4 py-3 flex items-center justify-between bg-[#0d1117] mx-4 rounded-2xl mb-3 border border-[#1e2d3d]">
         <div className="flex items-center gap-3">
           <div className="w-10 h-10 rounded-full flex items-center justify-center text-lg border border-[#1e2d3d] bg-[#161b22]">
@@ -404,9 +488,8 @@ function GameContent() {
             arePiecesDraggable={status !== 'finished' && !botThinking}
             onSquareClick={handleSquareClick}
             customSquareStyles={{
-              ...(selectedSquare
-                ? { [selectedSquare]: { backgroundColor: 'rgba(0, 212, 255, 0.4)' } }
-                : {}),
+              ...botMoveHighlight,
+              ...selectedHighlight,
             }}
           />
         </div>
@@ -430,19 +513,47 @@ function GameContent() {
         </div>
       </div>
 
+      {/* Resign confirm modal */}
+      {showResignConfirm && (
+        <div className="fixed inset-0 bg-black/80 flex items-center justify-center px-4 z-50">
+          <div className="bg-[#0d1117] border border-[#1e2d3d] rounded-2xl p-8 w-full max-w-sm text-center">
+            <p className="text-4xl mb-4">🏳️</p>
+            <h2 className="text-xl font-bold text-white mb-2">Resign?</h2>
+            <p className="text-gray-500 text-sm mb-6">
+              Are you sure you want to give up this game?
+            </p>
+            <button
+              onClick={handlePlayerResign}
+              className="w-full bg-red-500 hover:bg-red-600 text-white font-bold py-3 rounded-xl text-sm mb-3"
+            >
+              Yes, Resign
+            </button>
+            <button
+              onClick={() => setShowResignConfirm(false)}
+              className="w-full text-gray-600 text-xs hover:text-gray-400 py-2"
+            >
+              Keep Playing
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* Game over overlay */}
       {status === 'finished' && (
         <div className="fixed inset-0 bg-black/80 flex items-center justify-center px-4 z-50">
           <div className="bg-[#0d1117] border border-[#1e2d3d] rounded-2xl p-8 w-full max-w-sm text-center">
             <p className="text-5xl mb-4">
-              {result === 'draw' ? '🤝' : result === 'you_win' ? '🏆' : '💀'}
+              {result === 'draw' ? '🤝'
+                : result === 'you_win' ? '🏆'
+                : result === 'you_lose' ? '💀'
+                : '💀'}
             </p>
             <h2 className="text-2xl font-bold text-white mb-2">
-              {result === 'draw' ? 'Draw!' : result === 'you_win' ? 'You Win!' : 'You Lose'}
+              {result === 'draw' ? 'Draw!'
+                : result === 'you_win' ? 'You Win!'
+                : 'You Lose'}
             </h2>
-            <p className="text-gray-500 text-sm mb-6">
-              vs {opponentName}
-            </p>
+            <p className="text-gray-500 text-sm mb-6">vs {opponentName}</p>
             <button
               onClick={() => router.push('/play')}
               className="w-full bg-[#00d4ff] hover:bg-[#00b8e0] text-black font-bold py-3 rounded-xl text-sm mb-3"
