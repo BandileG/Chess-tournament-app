@@ -1,21 +1,28 @@
 'use client'
 import { useEffect, useState } from 'react'
-import { useRouter } from 'next/navigation'
+import { useRouter, useSearchParams } from 'next/navigation'
 import { createClientComponentClient } from '@supabase/auth-helpers-nextjs'
+import { Suspense } from 'react'
 
 const AMOUNTS = [5, 10, 20, 50, 100]
 
-export default function WalletPage() {
+function WalletContent() {
   const [balance, setBalance] = useState(0.00)
   const [username, setUsername] = useState('Player')
   const [selected, setSelected] = useState<number | null>(null)
   const [custom, setCustom] = useState('')
-  const [loading, setLoading] = useState(false)
+  const [loading, setLoading] = useState<'paypal' | 'binance' | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [success, setSuccess] = useState<string | null>(null)
   const router = useRouter()
+  const searchParams = useSearchParams()
 
   useEffect(() => {
+    // Show success message if returning from Binance Pay
+    const deposit = searchParams.get('deposit')
+    if (deposit === 'success') setSuccess('Deposit successful! Balance updated.')
+    if (deposit === 'cancelled') setError('Deposit cancelled.')
+
     const supabase = createClientComponentClient()
     supabase.auth.getUser().then(({ data: { user } }) => {
       if (!user) { router.push('/login'); return }
@@ -29,16 +36,16 @@ export default function WalletPage() {
           if (data?.wallet_balance) setBalance(data.wallet_balance)
         })
     })
-  }, [router])
+  }, [router, searchParams])
 
   const depositAmount = selected || (custom ? parseFloat(custom) : 0)
 
-  const handleDeposit = async () => {
+  const handlePayPal = async () => {
     if (!depositAmount || depositAmount < 5) {
       setError('Minimum deposit is $5')
       return
     }
-    setLoading(true)
+    setLoading('paypal')
     setError(null)
 
     try {
@@ -56,7 +63,33 @@ export default function WalletPage() {
     } catch {
       setError('Network error. Please try again.')
     }
-    setLoading(false)
+    setLoading(null)
+  }
+
+  const handleBinance = async () => {
+    if (!depositAmount || depositAmount < 5) {
+      setError('Minimum deposit is $5')
+      return
+    }
+    setLoading('binance')
+    setError(null)
+
+    try {
+      const res = await fetch('/api/binance/create-order', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ amount: depositAmount }),
+      })
+      const data = await res.json()
+      if (data.checkoutUrl) {
+        window.location.href = data.checkoutUrl
+      } else {
+        setError(data.error || 'Failed to create Binance Pay order. Try again.')
+      }
+    } catch {
+      setError('Network error. Please try again.')
+    }
+    setLoading(null)
   }
 
   return (
@@ -150,23 +183,50 @@ export default function WalletPage() {
           </div>
         )}
 
-        <button
-          onClick={handleDeposit}
-          disabled={!depositAmount || depositAmount < 5 || loading}
-          className="w-full bg-[#00d4ff] hover:bg-[#00b8e0] disabled:opacity-30 disabled:cursor-not-allowed text-black font-bold py-3 rounded-xl transition-colors text-sm mb-4"
-        >
-          {loading ? 'Processing...' : `Deposit via PayPal${depositAmount >= 5 ? ` — $${depositAmount.toFixed(2)}` : ''}`}
-        </button>
+        {/* Payment buttons */}
+        <div className="flex flex-col gap-3 mb-6">
+
+          {/* Binance Pay */}
+          <button
+            onClick={handleBinance}
+            disabled={!depositAmount || depositAmount < 5 || !!loading}
+            className="w-full bg-[#F0B90B] hover:bg-[#d4a500] disabled:opacity-30 disabled:cursor-not-allowed text-black font-bold py-3 rounded-xl transition-colors text-sm flex items-center justify-center gap-2"
+          >
+            <span>⬡</span>
+            {loading === 'binance' ? 'Processing...' : `Deposit via Binance Pay${depositAmount >= 5 ? ` — $${depositAmount.toFixed(2)}` : ''}`}
+          </button>
+
+          {/* PayPal */}
+          <button
+            onClick={handlePayPal}
+            disabled={!depositAmount || depositAmount < 5 || !!loading}
+            className="w-full bg-[#0070E0] hover:bg-[#005bb5] disabled:opacity-30 disabled:cursor-not-allowed text-white font-bold py-3 rounded-xl transition-colors text-sm"
+          >
+            {loading === 'paypal' ? 'Processing...' : `Deposit via PayPal${depositAmount >= 5 ? ` — $${depositAmount.toFixed(2)}` : ''}`}
+          </button>
+
+        </div>
+
+        {/* Crypto note */}
+        <div className="bg-[#F0B90B]/10 border border-[#F0B90B]/20 rounded-xl px-4 py-3 mb-6 flex items-start gap-3">
+          <span className="text-[#F0B90B] text-lg mt-0.5">⬡</span>
+          <div>
+            <p className="text-[#F0B90B] text-xs font-semibold mb-1">Binance Pay accepts USDT</p>
+            <p className="text-gray-400 text-xs">
+              Pay instantly using USDT, BNB, or any supported Binance asset. No fees. Instant credit.
+            </p>
+          </div>
+        </div>
 
         {/* Withdraw section */}
-        <div className="bg-[#0d1117] border border-[#1e2d3d] rounded-2xl p-5 mt-6">
+        <div className="bg-[#0d1117] border border-[#1e2d3d] rounded-2xl p-5 mt-2">
           <p className="text-white font-bold text-sm mb-1">Withdraw Funds</p>
-          <p className="text-gray-500 text-xs mb-4">Withdraw your winnings directly to your PayPal account</p>
+          <p className="text-gray-500 text-xs mb-4">Withdraw your winnings to PayPal or Binance</p>
           <button
             onClick={() => router.push('/wallet/withdraw')}
             className="w-full border border-[#1e2d3d] hover:border-[#00d4ff] text-white font-bold py-3 rounded-xl transition-colors text-sm"
           >
-            Withdraw to PayPal →
+            Withdraw →
           </button>
         </div>
 
@@ -181,6 +241,18 @@ export default function WalletPage() {
       </div>
 
     </main>
+  )
+}
+
+export default function WalletPage() {
+  return (
+    <Suspense fallback={
+      <main className="min-h-screen bg-[#080c10] flex items-center justify-center">
+        <div className="w-10 h-10 border-2 border-[#00d4ff] border-t-transparent rounded-full animate-spin" />
+      </main>
+    }>
+      <WalletContent />
+    </Suspense>
   )
 }
 
