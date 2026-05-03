@@ -53,4 +53,4 @@ export async function POST(request: Request) {
     console.error('[START-BOT]', err)
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
-}
+} 
