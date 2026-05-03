@@ -80,7 +80,6 @@ function GameContent() {
         setIsVsBot(data.is_vs_bot)
         if (data.bot_level) setBotLevel(data.bot_level)
 
-        // Load bot profile from game data
         if (data.is_vs_bot && data.bot_name) {
           setBotProfile({
             id: data.bot_id || 'bot',
@@ -92,6 +91,7 @@ function GameContent() {
             bio: data.bot_bio || '',
             delay: [3000, 8000],
             stockfishLevel: data.bot_level || 5,
+            tier: 'Amateur',
           })
           setOpponentName(data.bot_name)
         }
@@ -111,7 +111,6 @@ function GameContent() {
           setResult(data.result)
         }
 
-        // Get opponent name for human games
         if (!data.is_vs_bot) {
           const oppId = isWhite ? data.black_player_id : data.white_player_id
           if (oppId) {
@@ -124,13 +123,18 @@ function GameContent() {
         moveStartRef.current = Date.now()
       })
 
-    // Realtime for vs human
     const channel = supabase.channel('casual-' + gameId)
       .on('postgres_changes', {
         event: 'UPDATE', schema: 'public',
         table: 'casual_games', filter: `id=eq.${gameId}`,
       }, (payload) => {
-        const updated = payload.new as any
+        const updated = payload.new as {
+          current_fen: string
+          white_time_remaining: number
+          black_time_remaining: number
+          status: string
+          result: string
+        }
         if (updated.current_fen) {
           const g = new Chess()
           g.load(updated.current_fen)
@@ -351,51 +355,30 @@ function GameContent() {
         <div className={`px-3 py-1 rounded-full text-xs font-bold ${
           status === 'finished' ? 'bg-gray-500/20 text-gray-400'
           : isMyTurn ? 'bg-green-500/20 text-green-400'
-          : botThinking ? 'bg-purple-500/20 text-purple-400'
+          : botThinking ? 'bg-yellow-500/20 text-yellow-400'
           : 'bg-yellow-500/20 text-yellow-400'
         }`}>
           {status === 'finished' ? 'Game Over'
-            : botThinking ? '⏳ Opponent thinking'
+            : botThinking ? `Opponent ${thinkingMsg}`
             : isMyTurn ? 'Your Turn ♟'
             : "Opponent's Turn"}
         </div>
       </div>
 
-      {/* Opponent bar */}
+      {/* Opponent bar — looks like a real human */}
       <div className="px-4 py-3 flex items-center justify-between bg-[#0d1117] mx-4 rounded-2xl mb-3 border border-[#1e2d3d]">
         <div className="flex items-center gap-3">
-          <div className={`w-10 h-10 rounded-full flex items-center justify-center text-lg border ${
-            botThinking
-              ? 'border-purple-500/40 bg-purple-500/10'
-              : 'border-[#1e2d3d] bg-[#161b22]'
-          }`}>
-            {isVsBot ? botProfile?.avatar || '♟' : '♟️'}
+          <div className="w-10 h-10 rounded-full flex items-center justify-center text-lg border border-[#1e2d3d] bg-[#161b22]">
+            ♟️
           </div>
           <div>
-            <div className="flex items-center gap-2">
-              <p className="text-white font-bold text-sm">
-                {isVsBot ? botProfile?.name || opponentName : opponentName}
-              </p>
-              {isVsBot && botProfile && (
-                <span className="text-xs">{botProfile.flag}</span>
+            <p className="text-white font-bold text-sm">{opponentName}</p>
+            <p className="text-gray-500 text-xs capitalize">
+              {playerColor === 'white' ? 'Black' : 'White'}
+              {botThinking && (
+                <span className="text-gray-500 animate-pulse"> · {thinkingMsg}</span>
               )}
-            </div>
-            <div className="flex items-center gap-2">
-              {isVsBot && botProfile ? (
-                <>
-                  <p className="text-gray-500 text-xs">{botProfile.elo} ELO</p>
-                  {botThinking && (
-                    <p className="text-purple-400 text-xs animate-pulse">
-                      {thinkingMsg}
-                    </p>
-                  )}
-                </>
-              ) : (
-                <p className="text-gray-500 text-xs capitalize">
-                  {playerColor === 'white' ? 'Black' : 'White'}
-                </p>
-              )}
-            </div>
+            </p>
           </div>
         </div>
         <div className={`px-4 py-2 rounded-xl font-bold text-lg font-mono ${
@@ -404,13 +387,6 @@ function GameContent() {
           {formatTime(oppTime)}
         </div>
       </div>
-
-      {/* Bot bio tooltip */}
-      {isVsBot && botProfile?.bio && !botThinking && status === 'playing' && moveNumber <= 3 && (
-        <div className="mx-4 mb-3 px-4 py-2 bg-[#0d1117] border border-[#1e2d3d] rounded-xl">
-          <p className="text-gray-500 text-xs italic">"{botProfile.bio}"</p>
-        </div>
-      )}
 
       {/* Board */}
       <div className="px-4 flex-1 flex items-center justify-center">
@@ -464,18 +440,9 @@ function GameContent() {
             <h2 className="text-2xl font-bold text-white mb-2">
               {result === 'draw' ? 'Draw!' : result === 'you_win' ? 'You Win!' : 'You Lose'}
             </h2>
-            {isVsBot && botProfile && (
-              <div className="flex items-center justify-center gap-2 mb-4">
-                <span>{botProfile.flag}</span>
-                <p className="text-gray-400 text-sm">vs {botProfile.name}</p>
-                <span className="text-gray-600 text-xs">({botProfile.elo} ELO)</span>
-              </div>
-            )}
-            {result === 'you_lose' && isVsBot && botProfile && (
-              <p className="text-gray-600 text-xs italic mb-4">
-                "{botProfile.bio}"
-              </p>
-            )}
+            <p className="text-gray-500 text-sm mb-6">
+              vs {opponentName}
+            </p>
             <button
               onClick={() => router.push('/play')}
               className="w-full bg-[#00d4ff] hover:bg-[#00b8e0] text-black font-bold py-3 rounded-xl text-sm mb-3"
