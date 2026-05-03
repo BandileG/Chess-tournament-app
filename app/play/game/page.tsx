@@ -4,25 +4,24 @@ import { useRouter, useSearchParams } from 'next/navigation'
 import { createClientComponentClient } from '@supabase/auth-helpers-nextjs'
 import { Chess } from 'chess.js'
 import { Chessboard } from 'react-chessboard'
+import type { BotProfile } from '@/lib/bots'
 
-function getBotDepth(level: number): number {
-  return level
-}
-
-function getBotDelay(level: number): number {
-  if (level <= 1) return 500
-  if (level <= 3) return 800
-  if (level <= 5) return 1000
-  if (level <= 8) return 1200
-  if (level <= 12) return 1500
-  return 2000
-}
+const THINKING_MESSAGES = [
+  'is thinking...',
+  'is calculating...',
+  'is planning...',
+  'is analyzing...',
+  'is studying the board...',
+  'is finding the best move...',
+]
 
 function GameContent() {
   const [game, setGame] = useState(new Chess())
   const [gameId, setGameId] = useState<string | null>(null)
   const [isVsBot, setIsVsBot] = useState(false)
   const [botLevel, setBotLevel] = useState(5)
+  const [botProfile, setBotProfile] = useState<BotProfile | null>(null)
+  const [thinkingMsg, setThinkingMsg] = useState('is thinking...')
   const [playerColor, setPlayerColor] = useState<'white' | 'black'>('white')
   const [userId, setUserId] = useState<string | null>(null)
   const [opponentName, setOpponentName] = useState('Opponent')
@@ -33,25 +32,23 @@ function GameContent() {
   const [result, setResult] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
   const [botThinking, setBotThinking] = useState(false)
-const [selectedSquare, setSelectedSquare] = useState<string | null>(null)
-  const stockfishRef = useRef<Worker | null>(null)
+  const [selectedSquare, setSelectedSquare] = useState<string | null>(null)
+  const [moveNumber, setMoveNumber] = useState(1)
   const router = useRouter()
   const searchParams = useSearchParams()
   const moveStartRef = useRef<number>(Date.now())
 
-  // Init Stockfish
+  // Rotate thinking messages
   useEffect(() => {
-    if (typeof window === 'undefined') return
-    try {
-      const sf = new Worker('/stockfish.js')
-      sf.postMessage('uci')
-      sf.postMessage('isready')
-      stockfishRef.current = sf
-      return () => sf.terminate()
-    } catch (err) {
-      console.error('Stockfish failed to load:', err)
-    }
-  }, [])
+    if (!botThinking) return
+    const msgs = THINKING_MESSAGES
+    let i = 0
+    const interval = setInterval(() => {
+      i = (i + 1) % msgs.length
+      setThinkingMsg(msgs[i])
+    }, 3000)
+    return () => clearInterval(interval)
+  }, [botThinking])
 
   // Get params + user
   useEffect(() => {
@@ -83,29 +80,44 @@ const [selectedSquare, setSelectedSquare] = useState<string | null>(null)
         setIsVsBot(data.is_vs_bot)
         if (data.bot_level) setBotLevel(data.bot_level)
 
+        // Load bot profile from game data
+        if (data.is_vs_bot && data.bot_name) {
+          setBotProfile({
+            id: data.bot_id || 'bot',
+            name: data.bot_name,
+            flag: data.bot_flag || '🌍',
+            country: '',
+            elo: data.bot_elo || 800,
+            avatar: data.bot_avatar || '♟',
+            bio: data.bot_bio || '',
+            delay: [3000, 8000],
+            stockfishLevel: data.bot_level || 5,
+          })
+          setOpponentName(data.bot_name)
+        }
+
         if (data.current_fen) {
           const g = new Chess()
           g.load(data.current_fen)
           setGame(g)
+          setMoveNumber(Math.ceil(g.history().length / 2) + 1)
         }
 
-        setWhiteTime(Math.floor((data.white_time_remaining) / 1000))
-        setBlackTime(Math.floor((data.black_time_remaining) / 1000))
+        setWhiteTime(Math.floor(data.white_time_remaining / 1000))
+        setBlackTime(Math.floor(data.black_time_remaining / 1000))
 
         if (data.status === 'completed') {
           setStatus('finished')
           setResult(data.result)
         }
 
-        // Get opponent name
+        // Get opponent name for human games
         if (!data.is_vs_bot) {
           const oppId = isWhite ? data.black_player_id : data.white_player_id
           if (oppId) {
             supabase.from('users').select('username').eq('id', oppId).single()
               .then(({ data: opp }) => { if (opp?.username) setOpponentName(opp.username) })
           }
-        } else {
-          setOpponentName(`Stockfish Lv.${data.bot_level}`)
         }
 
         setLoading(false)
@@ -123,6 +135,7 @@ const [selectedSquare, setSelectedSquare] = useState<string | null>(null)
           const g = new Chess()
           g.load(updated.current_fen)
           setGame(g)
+          setMoveNumber(Math.ceil(g.history().length / 2) + 1)
         }
         setWhiteTime(Math.floor(updated.white_time_remaining / 1000))
         setBlackTime(Math.floor(updated.black_time_remaining / 1000))
@@ -156,9 +169,8 @@ const [selectedSquare, setSelectedSquare] = useState<string | null>(null)
     return () => clearInterval(interval)
   }, [game, status])
 
-  // Stockfish move
-  
-const makeBotMove = useCallback(async (currentGame: Chess) => {
+  // Bot move
+  const makeBotMove = useCallback(async (currentGame: Chess) => {
     if (status === 'finished') return
     setBotThinking(true)
 
@@ -170,6 +182,8 @@ const makeBotMove = useCallback(async (currentGame: Chess) => {
           game_id: gameId,
           fen: currentGame.fen(),
           bot_level: botLevel,
+          bot_id: botProfile?.id,
+          move_number: moveNumber,
         }),
       })
       const data = await res.json()
@@ -186,6 +200,7 @@ const makeBotMove = useCallback(async (currentGame: Chess) => {
 
       setBotThinking(false)
       setGame(gameCopy)
+      setMoveNumber(prev => prev + 1)
       saveMove(gameCopy, move.san, uci, 'black', 0)
 
       if (gameCopy.isGameOver()) {
@@ -194,8 +209,9 @@ const makeBotMove = useCallback(async (currentGame: Chess) => {
     } catch {
       setBotThinking(false)
     }
-  }, [botLevel, status, userId, gameId])
-  // Trigger bot move when it's bot's turn
+  }, [botLevel, status, userId, gameId, botProfile, moveNumber])
+
+  // Trigger bot move
   useEffect(() => {
     if (!isVsBot || status === 'finished' || botThinking) return
     const isBotTurn = (playerColor === 'white' && game.turn() === 'b') ||
@@ -228,10 +244,8 @@ const makeBotMove = useCallback(async (currentGame: Chess) => {
   const handleGameOver = async (winnerId: string | null, reason: string) => {
     if (status === 'finished') return
     setStatus('finished')
-
     const isWinner = winnerId === userId
     setResult(isWinner ? 'you_win' : winnerId === null ? 'draw' : 'you_lose')
-
     if (gameId) {
       const supabase = createClientComponentClient()
       await supabase.from('casual_games').update({
@@ -242,7 +256,8 @@ const makeBotMove = useCallback(async (currentGame: Chess) => {
       }).eq('id', gameId)
     }
   }
-const handleSquareClick = useCallback((square: string) => {
+
+  const handleSquareClick = useCallback((square: string) => {
     if (status === 'finished' || botThinking) return
     const isMyTurn = (playerColor === 'white' && game.turn() === 'w') ||
                      (playerColor === 'black' && game.turn() === 'b')
@@ -256,6 +271,7 @@ const handleSquareClick = useCallback((square: string) => {
           const timeSpent = Date.now() - moveStartRef.current
           moveStartRef.current = Date.now()
           setGame(gameCopy)
+          setMoveNumber(prev => prev + 1)
           setSelectedSquare(null)
           saveMove(gameCopy, move.san, selectedSquare + square, playerColor, timeSpent)
           if (gameCopy.isGameOver()) {
@@ -273,6 +289,7 @@ const handleSquareClick = useCallback((square: string) => {
       }
     }
   }, [game, selectedSquare, playerColor, status, botThinking, userId, gameId])
+
   const onDrop = useCallback((sourceSquare: string, targetSquare: string) => {
     if (status === 'finished') return false
     if (!gameId || !userId) return false
@@ -292,15 +309,12 @@ const handleSquareClick = useCallback((square: string) => {
     const timeSpent = Date.now() - moveStartRef.current
     moveStartRef.current = Date.now()
     setGame(gameCopy)
-
+    setMoveNumber(prev => prev + 1)
     saveMove(gameCopy, move.san, sourceSquare + targetSquare, playerColor, timeSpent)
 
     if (gameCopy.isGameOver()) {
-      if (gameCopy.isCheckmate()) {
-        handleGameOver(userId, 'checkmate')
-      } else {
-        handleGameOver(null, 'draw')
-      }
+      if (gameCopy.isCheckmate()) handleGameOver(userId, 'checkmate')
+      else handleGameOver(null, 'draw')
     }
 
     return true
@@ -334,47 +348,69 @@ const handleSquareClick = useCallback((square: string) => {
           <span className="text-[#00d4ff]">BLITZ</span>
           <span className="text-white">STAKE</span>
         </h1>
-        <div className="flex items-center gap-2">
-          {isVsBot && (
-            <span className="text-xs bg-purple-500/20 text-purple-400 border border-purple-500/20 px-2 py-1 rounded-full font-bold">
-              vs Stockfish
-            </span>
-          )}
-          <div className={`px-3 py-1 rounded-full text-xs font-bold ${
-            status === 'finished' ? 'bg-gray-500/20 text-gray-400'
-            : isMyTurn ? 'bg-green-500/20 text-green-400'
-            : botThinking ? 'bg-purple-500/20 text-purple-400'
-            : 'bg-yellow-500/20 text-yellow-400'
-          }`}>
-            {status === 'finished' ? 'Game Over'
-              : botThinking ? 'Bot thinking...'
-              : isMyTurn ? 'Your Turn'
-              : "Opponent's Turn"}
-          </div>
+        <div className={`px-3 py-1 rounded-full text-xs font-bold ${
+          status === 'finished' ? 'bg-gray-500/20 text-gray-400'
+          : isMyTurn ? 'bg-green-500/20 text-green-400'
+          : botThinking ? 'bg-purple-500/20 text-purple-400'
+          : 'bg-yellow-500/20 text-yellow-400'
+        }`}>
+          {status === 'finished' ? 'Game Over'
+            : botThinking ? '⏳ Opponent thinking'
+            : isMyTurn ? 'Your Turn ♟'
+            : "Opponent's Turn"}
         </div>
       </div>
 
       {/* Opponent bar */}
-      <div className="px-4 py-3 flex items-center justify-between bg-[#0d1117] mx-4 rounded-2xl mb-3">
+      <div className="px-4 py-3 flex items-center justify-between bg-[#0d1117] mx-4 rounded-2xl mb-3 border border-[#1e2d3d]">
         <div className="flex items-center gap-3">
-          <div className={`w-8 h-8 rounded-full flex items-center justify-center text-sm ${
-            isVsBot ? 'bg-purple-500/20' : 'bg-[#1e2d3d]'
+          <div className={`w-10 h-10 rounded-full flex items-center justify-center text-lg border ${
+            botThinking
+              ? 'border-purple-500/40 bg-purple-500/10'
+              : 'border-[#1e2d3d] bg-[#161b22]'
           }`}>
-            {isVsBot ? '🤖' : '♟️'}
+            {isVsBot ? botProfile?.avatar || '♟' : '♟️'}
           </div>
           <div>
-            <p className="text-white font-bold text-sm">{opponentName}</p>
-            <p className="text-gray-500 text-xs capitalize">
-              {playerColor === 'white' ? 'Black' : 'White'}
-            </p>
+            <div className="flex items-center gap-2">
+              <p className="text-white font-bold text-sm">
+                {isVsBot ? botProfile?.name || opponentName : opponentName}
+              </p>
+              {isVsBot && botProfile && (
+                <span className="text-xs">{botProfile.flag}</span>
+              )}
+            </div>
+            <div className="flex items-center gap-2">
+              {isVsBot && botProfile ? (
+                <>
+                  <p className="text-gray-500 text-xs">{botProfile.elo} ELO</p>
+                  {botThinking && (
+                    <p className="text-purple-400 text-xs animate-pulse">
+                      {thinkingMsg}
+                    </p>
+                  )}
+                </>
+              ) : (
+                <p className="text-gray-500 text-xs capitalize">
+                  {playerColor === 'white' ? 'Black' : 'White'}
+                </p>
+              )}
+            </div>
           </div>
         </div>
-        <div className={`px-4 py-2 rounded-xl font-bold text-lg ${
+        <div className={`px-4 py-2 rounded-xl font-bold text-lg font-mono ${
           oppTime < 30 ? 'bg-red-500/20 text-red-400' : 'bg-[#1e2d3d] text-white'
         }`}>
           {formatTime(oppTime)}
         </div>
       </div>
+
+      {/* Bot bio tooltip */}
+      {isVsBot && botProfile?.bio && !botThinking && status === 'playing' && moveNumber <= 3 && (
+        <div className="mx-4 mb-3 px-4 py-2 bg-[#0d1117] border border-[#1e2d3d] rounded-xl">
+          <p className="text-gray-500 text-xs italic">"{botProfile.bio}"</p>
+        </div>
+      )}
 
       {/* Board */}
       <div className="px-4 flex-1 flex items-center justify-center">
@@ -390,18 +426,20 @@ const handleSquareClick = useCallback((square: string) => {
             customDarkSquareStyle={{ backgroundColor: '#1e2d3d' }}
             customLightSquareStyle={{ backgroundColor: '#2d4060' }}
             arePiecesDraggable={status !== 'finished' && !botThinking}
-onSquareClick={handleSquareClick}
-customSquareStyles={{
-  ...(selectedSquare ? { [selectedSquare]: { backgroundColor: 'rgba(0, 212, 255, 0.4)' } } : {})
-}}
+            onSquareClick={handleSquareClick}
+            customSquareStyles={{
+              ...(selectedSquare
+                ? { [selectedSquare]: { backgroundColor: 'rgba(0, 212, 255, 0.4)' } }
+                : {}),
+            }}
           />
         </div>
       </div>
 
       {/* My bar */}
-      <div className="px-4 py-3 flex items-center justify-between bg-[#0d1117] mx-4 rounded-2xl mt-3 mb-4">
+      <div className="px-4 py-3 flex items-center justify-between bg-[#0d1117] mx-4 rounded-2xl mt-3 mb-4 border border-[#1e2d3d]">
         <div className="flex items-center gap-3">
-          <div className="w-8 h-8 rounded-full bg-[#00d4ff]/20 flex items-center justify-center text-sm">
+          <div className="w-10 h-10 rounded-full bg-[#00d4ff]/10 border border-[#00d4ff]/30 flex items-center justify-center text-lg">
             ♙
           </div>
           <div>
@@ -409,7 +447,7 @@ customSquareStyles={{
             <p className="text-gray-500 text-xs capitalize">{playerColor}</p>
           </div>
         </div>
-        <div className={`px-4 py-2 rounded-xl font-bold text-lg ${
+        <div className={`px-4 py-2 rounded-xl font-bold text-lg font-mono ${
           myTime < 30 ? 'bg-red-500/20 text-red-400' : 'bg-[#00d4ff]/10 text-[#00d4ff]'
         }`}>
           {formatTime(myTime)}
@@ -426,9 +464,18 @@ customSquareStyles={{
             <h2 className="text-2xl font-bold text-white mb-2">
               {result === 'draw' ? 'Draw!' : result === 'you_win' ? 'You Win!' : 'You Lose'}
             </h2>
-            <p className="text-gray-500 text-sm mb-6">
-              {isVsBot ? `vs Stockfish Level ${botLevel}` : `vs ${opponentName}`}
-            </p>
+            {isVsBot && botProfile && (
+              <div className="flex items-center justify-center gap-2 mb-4">
+                <span>{botProfile.flag}</span>
+                <p className="text-gray-400 text-sm">vs {botProfile.name}</p>
+                <span className="text-gray-600 text-xs">({botProfile.elo} ELO)</span>
+              </div>
+            )}
+            {result === 'you_lose' && isVsBot && botProfile && (
+              <p className="text-gray-600 text-xs italic mb-4">
+                "{botProfile.bio}"
+              </p>
+            )}
             <button
               onClick={() => router.push('/play')}
               className="w-full bg-[#00d4ff] hover:bg-[#00b8e0] text-black font-bold py-3 rounded-xl text-sm mb-3"
