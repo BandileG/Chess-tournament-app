@@ -1,59 +1,46 @@
 export const dynamic = 'force-dynamic'
-import { createRouteHandlerClient } from '@supabase/auth-helpers-nextjs'
-import { cookies } from 'next/headers'
 import { NextResponse } from 'next/server'
+import { Chess } from 'chess.js'
+import { getThinkingDelay, getBotForElo, BOTS } from '@/lib/bots'
+
+function sleep(ms: number) {
+  return new Promise(resolve => setTimeout(resolve, ms))
+}
 
 export async function POST(request: Request) {
   try {
-    const supabase = createRouteHandlerClient({ cookies })
-    const { data: { session } } = await supabase.auth.getSession()
-    if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    const { fen, bot_level, bot_id, move_number, user_elo } = await request.json()
 
-    const { game_id, move_uci, move_san, fen_after, time_spent_ms, color } = await request.json()
+    // Find bot profile
+    const bot = bot_id
+      ? BOTS.find(b => b.id === bot_id) || getBotForElo(user_elo || 800)
+      : getBotForElo(user_elo || 800)
 
-    const { data: game } = await supabase
-      .from('casual_games')
-      .select('*')
-      .eq('id', game_id)
-      .single()
+    // Human-like thinking delay
+    const delay = getThinkingDelay(bot, move_number || 1)
+    await sleep(delay)
 
-    if (!game) return NextResponse.json({ error: 'Game not found' }, { status: 404 })
-    if (game.status !== 'active') return NextResponse.json({ error: 'Game not active' }, { status: 400 })
+    // Get Stockfish move
+    const depth = Math.min(bot.stockfishLevel, 18)
+    const res = await fetch(
+      `https://stockfish.online/api/s/v2.php?fen=${encodeURIComponent(fen)}&depth=${depth}`
+    )
+    const data = await res.json()
 
-    const incrementMs = game.increment * 1000
-    const newWhiteTime = color === 'white'
-      ? Math.max(0, game.white_time_remaining - time_spent_ms + incrementMs)
-      : game.white_time_remaining
-    const newBlackTime = color === 'black'
-      ? Math.max(0, game.black_time_remaining - time_spent_ms + incrementMs)
-      : game.black_time_remaining
+    if (data.success && data.bestmove) {
+      const uci = data.bestmove.replace('bestmove ', '').split(' ')[0]
+      return NextResponse.json({ success: true, move: uci, bot })
+    }
 
-    // Save move
-    await supabase.from('casual_moves').insert({
-      game_id,
-      player_id: session.user.id,
-      move_san,
-      move_uci,
-      fen_after,
-      move_number: Math.ceil((game.move_count + 1) / 2),
-      color,
-      time_spent_ms,
-      white_time_after: newWhiteTime,
-      black_time_after: newBlackTime,
-    })
+    // Fallback to random move
+    const chess = new Chess(fen)
+    const moves = chess.moves({ verbose: true })
+    const move = moves[Math.floor(Math.random() * moves.length)]
+    const uci = move.from + move.to + (move.promotion || '')
+    return NextResponse.json({ success: true, move: uci, bot })
 
-    // Update game
-    await supabase.from('casual_games').update({
-      current_fen: fen_after,
-      move_count: game.move_count + 1,
-      white_time_remaining: newWhiteTime,
-      black_time_remaining: newBlackTime,
-      last_move_at: new Date().toISOString(),
-    }).eq('id', game_id)
-
-    return NextResponse.json({ success: true })
   } catch (err) {
-    console.error('[PLAY-MOVE]', err)
+    console.error('[BOT-MOVE]', err)
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
 }
