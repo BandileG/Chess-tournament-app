@@ -41,6 +41,7 @@ function GameContent() {
   const [selectedSquare, setSelectedSquare] = useState<string | null>(null)
   const [moveNumber, setMoveNumber] = useState(1)
   const [lastBotMove, setLastBotMove] = useState<{ from: string; to: string } | null>(null)
+const [lastPlayerMove, setLastPlayerMove] = useState<{ from: string; to: string } | null>(null)
   const [showResignConfirm, setShowResignConfirm] = useState(false)
 
   // ── Move history navigation ──
@@ -279,6 +280,7 @@ function GameContent() {
       setTimeout(() => setLastBotMove(null), 1500)
 
       setGame(gameCopy)
+setLastPlayerMove({ from: selectedSquare, to: square })
       setMoveNumber(prev => prev + 1)
 
       // Update move history and fen history
@@ -428,6 +430,7 @@ function GameContent() {
     const timeSpent = Date.now() - moveStartRef.current
     moveStartRef.current = Date.now()
     setGame(gameCopy)
+setLastPlayerMove({ from: sourceSquare, to: targetSquare })
     setMoveNumber(prev => prev + 1)
     setMoveHistory(prev => [...prev, move!.san])
     setFenHistory(prev => {
@@ -554,11 +557,14 @@ if (loading) {
             customDarkSquareStyle={{ backgroundColor: '#1e2d3d' }}
             customLightSquareStyle={{ backgroundColor: '#2d4060' }}
             arePiecesDraggable={status !== 'finished' && !botThinking && !isViewingHistory}
-            onSquareClick={handleSquareClick}
             customSquareStyles={{
-              ...botMoveHighlight,
-              ...selectedHighlight,
-            }}
+  ...botMoveHighlight,
+  ...(lastPlayerMove ? {
+    [lastPlayerMove.from]: { backgroundColor: 'rgba(0, 212, 255, 0.35)' },
+    [lastPlayerMove.to]: { backgroundColor: 'rgba(0, 212, 255, 0.55)' },
+  } : {}),
+  ...selectedHighlight,
+}}
           />
         </div>
       </div>
