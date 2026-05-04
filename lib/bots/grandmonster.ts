@@ -4,9 +4,8 @@
 // Delay: 8000–32000ms
 // ============================================================
 
-import type { BotProfile } from './types'
-import { getTier } from './types'
-
+import type { BotProfile } from '@/lib/bots/types'
+import { getTier } from '@/lib/bots/types'
 const RAW = [
   {
     id: 'bot_ironrook_dmitri',
