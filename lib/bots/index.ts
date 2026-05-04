@@ -2,15 +2,15 @@
 // BLITZSTAKE BOTS — MAIN EXPORT
 // ============================================================
 
-export type { BotProfile, BotTier } from './types'
+
+export type { BotProfile, BotTier } from '@/lib/bots/types'
 export { 
   getTier, 
   getThinkingDelay,
   evaluateMaterial,
   shouldBotResign,
   OPENING_BOOK,
-} from './types'
-
+} from '@/lib/bots/types'
 import { AMATEUR_BOTS } from './amateur'
 import { BEGINNER_BOTS } from './beginner'
 import { INTERMEDIATE_BOTS } from './intermediate'
