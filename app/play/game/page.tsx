@@ -367,7 +367,7 @@ function GameContent() {
           const timeSpent = Date.now() - moveStartRef.current
           moveStartRef.current = Date.now()
           setGame(gameCopy)
-          setLastPlayerMove({ from: selectedSquare, to: square })
+          setLastPlayerMove({ from: selectedSquare, to: square })setTimeout(() => setLastPlayerMove(null), 1500)
           setMoveNumber(prev => prev + 1)
           setSelectedSquare(null)
           setMoveHistory(prev => [...prev, move.san])
@@ -410,7 +410,7 @@ function GameContent() {
     const timeSpent = Date.now() - moveStartRef.current
     moveStartRef.current = Date.now()
     setGame(gameCopy)
-    setLastPlayerMove({ from: sourceSquare, to: targetSquare })
+    setLastPlayerMove({ from: sourceSquare, to: targetSquare })setTimeout(() => setLastPlayerMove(null), 1500)
     setMoveNumber(prev => prev + 1)
     setMoveHistory(prev => [...prev, move!.san])
     setFenHistory(prev => {
