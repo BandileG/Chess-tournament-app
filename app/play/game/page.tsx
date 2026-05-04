@@ -12,7 +12,9 @@ const THINKING_MESSAGES = [
   'is planning...',
   'is analyzing...',
   'is studying the board...',
+  'is considering options...',
   'is finding the best move...',
+  'is taking their time...',
 ]
 
 function GameContent() {
@@ -26,6 +28,8 @@ function GameContent() {
   const [playerColor, setPlayerColor] = useState<'white' | 'black'>('white')
   const [userId, setUserId] = useState<string | null>(null)
   const [opponentName, setOpponentName] = useState('Opponent')
+  const [opponentFlag, setOpponentFlag] = useState('🌍')
+  const [opponentCountry, setOpponentCountry] = useState('')
   const [myName, setMyName] = useState('You')
   const [whiteTime, setWhiteTime] = useState(300)
   const [blackTime, setBlackTime] = useState(300)
@@ -38,12 +42,18 @@ function GameContent() {
   const [moveNumber, setMoveNumber] = useState(1)
   const [lastBotMove, setLastBotMove] = useState<{ from: string; to: string } | null>(null)
   const [showResignConfirm, setShowResignConfirm] = useState(false)
+
+  // ── Move history navigation ──
+  const [moveHistory, setMoveHistory] = useState<string[]>([]) // SAN moves
+  const [fenHistory, setFenHistory] = useState<string[]>(['rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1'])
+  const [viewingIndex, setViewingIndex] = useState<number>(0) // 0 = start, fenHistory.length-1 = current
+  const isViewingHistory = viewingIndex < fenHistory.length - 1
+
   const router = useRouter()
   const searchParams = useSearchParams()
   const moveStartRef = useRef<number>(Date.now())
   const gameOverCalledRef = useRef(false)
-
-  // Rotate thinking messages
+// ── Rotate thinking messages with bot name ──
   useEffect(() => {
     if (!botThinking) return
     const msgs = THINKING_MESSAGES
@@ -55,7 +65,7 @@ function GameContent() {
     return () => clearInterval(interval)
   }, [botThinking])
 
-  // Get params + user
+  // ── Get params + user ──
   useEffect(() => {
     const id = searchParams.get('id')
     const bot = searchParams.get('bot') === 'true'
@@ -71,7 +81,7 @@ function GameContent() {
     })
   }, [searchParams])
 
-  // Load game data
+  // ── Load game data ──
   useEffect(() => {
     if (!gameId || !userId) return
     const supabase = createClientComponentClient()
@@ -91,22 +101,36 @@ function GameContent() {
             id: data.bot_id || 'bot',
             name: data.bot_name,
             flag: data.bot_flag || '🌍',
-            country: '',
+            country: data.bot_country || '',
             elo: data.bot_elo || 800,
             avatar: data.bot_avatar || '♟',
             bio: data.bot_bio || '',
-            delay: [3000, 8000],
+            delay: [1500, 8000],
             stockfishLevel: data.bot_level || 5,
             tier: 'Amateur',
           })
           setOpponentName(data.bot_name)
+          setOpponentFlag(data.bot_flag || '🌍')
+          setOpponentCountry(data.bot_country || '')
         }
 
         if (data.current_fen) {
           const g = new Chess()
           g.load(data.current_fen)
           setGame(g)
-          setMoveNumber(Math.ceil(g.history().length / 2) + 1)
+          const history = g.history()
+          setMoveHistory(history)
+          setMoveNumber(Math.ceil(history.length / 2) + 1)
+
+          // Rebuild fen history from scratch
+          const fens: string[] = ['rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1']
+          const tempGame = new Chess()
+          for (const move of history) {
+            tempGame.move(move)
+            fens.push(tempGame.fen())
+          }
+          setFenHistory(fens)
+          setViewingIndex(fens.length - 1)
         }
 
         const wTime = Math.floor(data.white_time_remaining / 1000)
@@ -149,7 +173,17 @@ function GameContent() {
           const g = new Chess()
           g.load(updated.current_fen)
           setGame(g)
-          setMoveNumber(Math.ceil(g.history().length / 2) + 1)
+          const history = g.history()
+          setMoveHistory(history)
+          setMoveNumber(Math.ceil(history.length / 2) + 1)
+          const fens: string[] = ['rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1']
+          const tempGame = new Chess()
+          for (const move of history) {
+            tempGame.move(move)
+            fens.push(tempGame.fen())
+          }
+          setFenHistory(fens)
+          setViewingIndex(fens.length - 1)
         }
         setWhiteTime(Math.floor(updated.white_time_remaining / 1000))
         setBlackTime(Math.floor(updated.black_time_remaining / 1000))
@@ -163,20 +197,17 @@ function GameContent() {
     return () => { supabase.removeChannel(channel) }
   }, [gameId, userId])
 
-  // ── TIMER — correct winner on timeout ──
+  // ── Timer ──
   useEffect(() => {
-    if (status === 'finished') return
+    if (status === 'finished' || isViewingHistory) return
     const interval = setInterval(() => {
       const isWhiteTurn = game.turn() === 'w'
       if (isWhiteTurn) {
         setWhiteTime(prev => {
           if (prev <= 1) {
-            // White ran out of time
             if (playerColor === 'white') {
-              // I am white — I lose
-              handleGameOver(null, 'timeout', 'opponent_wins')
+              handleGameOver(null, 'timeout', 'you_lose')
             } else {
-              // Bot is white — bot loses, I win
               handleGameOver(userId, 'timeout', 'you_win')
             }
             return 0
@@ -186,12 +217,9 @@ function GameContent() {
       } else {
         setBlackTime(prev => {
           if (prev <= 1) {
-            // Black ran out of time
             if (playerColor === 'black') {
-              // I am black — I lose
-              handleGameOver(null, 'timeout', 'opponent_wins')
+              handleGameOver(null, 'timeout', 'you_lose')
             } else {
-              // Bot is black — bot loses, I win
               handleGameOver(userId, 'timeout', 'you_win')
             }
             return 0
@@ -201,15 +229,14 @@ function GameContent() {
       }
     }, 1000)
     return () => clearInterval(interval)
-  }, [game, status, playerColor, userId])
+  }, [game, status, playerColor, userId, isViewingHistory])
 
-  // ── BOT MOVE ──
+  // ── Bot move ──
   const makeBotMove = useCallback(async (currentGame: Chess) => {
     if (status === 'finished' || gameOverCalledRef.current) return
     setBotThinking(true)
 
     try {
-      // Get current clock times in ms
       const botIsBlack = playerColor === 'white'
       const botTimeMs = botIsBlack ? blackTime * 1000 : whiteTime * 1000
       const userTimeMs = botIsBlack ? whiteTime * 1000 : blackTime * 1000
@@ -234,7 +261,6 @@ function GameContent() {
 
       if (!data.success) return
 
-      // ── Bot resigned ──
       if (data.resign) {
         handleGameOver(userId, 'resign', 'you_win')
         return
@@ -249,16 +275,24 @@ function GameContent() {
       const move = gameCopy.move({ from, to, promotion })
       if (!move) return
 
-      // Highlight bot's move on board
       setLastBotMove({ from, to })
       setTimeout(() => setLastBotMove(null), 1500)
 
       setGame(gameCopy)
       setMoveNumber(prev => prev + 1)
+
+      // Update move history and fen history
+      setMoveHistory(prev => [...prev, move.san])
+      setFenHistory(prev => {
+        const updated = [...prev, gameCopy.fen()]
+        setViewingIndex(updated.length - 1)
+        return updated
+      })
+
       saveMove(gameCopy, move.san, uci, 'black', 0)
 
       if (gameCopy.isGameOver()) {
-        if (gameCopy.isCheckmate()) handleGameOver(null, 'checkmate', 'opponent_wins')
+        if (gameCopy.isCheckmate()) handleGameOver(null, 'checkmate', 'you_lose')
         else handleGameOver(null, 'draw', 'draw')
       }
     } catch {
@@ -266,14 +300,15 @@ function GameContent() {
     }
   }, [botLevel, status, userId, gameId, botProfile, moveNumber, whiteTime, blackTime, totalTime, gameOpeningIndex, playerColor])
 
-  // Trigger bot move
+  // ── Trigger bot move ──
   useEffect(() => {
-    if (!isVsBot || status === 'finished' || botThinking) return
+    if (!isVsBot || status === 'finished' || botThinking || isViewingHistory) return
     const isBotTurn = (playerColor === 'white' && game.turn() === 'b') ||
                       (playerColor === 'black' && game.turn() === 'w')
     if (isBotTurn) makeBotMove(game)
-  }, [game, isVsBot, playerColor, status])
+  }, [game, isVsBot, playerColor, status, isViewingHistory])
 
+  // ── Save move ──
   const saveMove = async (
     currentGame: Chess,
     san: string,
@@ -296,6 +331,7 @@ function GameContent() {
     })
   }
 
+  // ── Game over ──
   const handleGameOver = async (
     winnerId: string | null,
     reason: string,
@@ -317,13 +353,27 @@ function GameContent() {
     }
   }
 
-  // ── PLAYER RESIGN ──
-  const handlePlayerResign = async () => {
+  // ── Player resign ──
+  const handlePlayerResign = () => {
     handleGameOver(null, 'resign', 'you_lose')
   }
 
+  // ── Move navigation ──
+  const goToPrevMove = () => {
+    setViewingIndex(prev => Math.max(0, prev - 1))
+  }
+
+  const goToNextMove = () => {
+    setViewingIndex(prev => Math.min(fenHistory.length - 1, prev + 1))
+  }
+
+  const goToCurrentMove = () => {
+    setViewingIndex(fenHistory.length - 1)
+  }
+
+  // ── Square click ──
   const handleSquareClick = useCallback((square: string) => {
-    if (status === 'finished' || botThinking) return
+    if (status === 'finished' || botThinking || isViewingHistory) return
     const isMyTurn = (playerColor === 'white' && game.turn() === 'w') ||
                      (playerColor === 'black' && game.turn() === 'b')
     if (!isMyTurn) return
@@ -338,6 +388,12 @@ function GameContent() {
           setGame(gameCopy)
           setMoveNumber(prev => prev + 1)
           setSelectedSquare(null)
+          setMoveHistory(prev => [...prev, move.san])
+          setFenHistory(prev => {
+            const updated = [...prev, gameCopy.fen()]
+            setViewingIndex(updated.length - 1)
+            return updated
+          })
           saveMove(gameCopy, move.san, selectedSquare + square, playerColor, timeSpent)
           if (gameCopy.isGameOver()) {
             if (gameCopy.isCheckmate()) handleGameOver(userId, 'checkmate', 'you_win')
@@ -353,13 +409,11 @@ function GameContent() {
         setSelectedSquare(square)
       }
     }
-  }, [game, selectedSquare, playerColor, status, botThinking, userId, gameId])
+  }, [game, selectedSquare, playerColor, status, botThinking, userId, gameId, isViewingHistory])
 
+  // ── Piece drop ──
   const onDrop = useCallback((sourceSquare: string, targetSquare: string) => {
-    if (status === 'finished') return false
-    if (!gameId || !userId) return false
-    if (botThinking) return false
-
+    if (status === 'finished' || !gameId || !userId || botThinking || isViewingHistory) return false
     const isMyTurn = (playerColor === 'white' && game.turn() === 'w') ||
                      (playerColor === 'black' && game.turn() === 'b')
     if (!isMyTurn) return false
@@ -375,6 +429,12 @@ function GameContent() {
     moveStartRef.current = Date.now()
     setGame(gameCopy)
     setMoveNumber(prev => prev + 1)
+    setMoveHistory(prev => [...prev, move!.san])
+    setFenHistory(prev => {
+      const updated = [...prev, gameCopy.fen()]
+      setViewingIndex(updated.length - 1)
+      return updated
+    })
     saveMove(gameCopy, move.san, sourceSquare + targetSquare, playerColor, timeSpent)
 
     if (gameCopy.isGameOver()) {
@@ -383,15 +443,14 @@ function GameContent() {
     }
 
     return true
-  }, [game, gameId, userId, playerColor, status, botThinking])
+  }, [game, gameId, userId, playerColor, status, botThinking, isViewingHistory])
 
   const formatTime = (s: number) => {
     const m = String(Math.floor(s / 60)).padStart(2, '0')
     const sec = String(s % 60).padStart(2, '0')
     return `${m}:${sec}`
   }
-
-  if (loading) {
+if (loading) {
     return (
       <main className="min-h-screen bg-[#080c10] flex items-center justify-center">
         <div className="w-10 h-10 rounded-full border-4 border-t-[#00d4ff] border-[#1e2d3d] animate-spin" />
@@ -404,17 +463,17 @@ function GameContent() {
   const myTime = playerColor === 'white' ? whiteTime : blackTime
   const oppTime = playerColor === 'white' ? blackTime : whiteTime
 
-  // Bot move highlight squares
-  const botMoveHighlight = lastBotMove
-    ? {
-        [lastBotMove.from]: { backgroundColor: 'rgba(255, 210, 0, 0.35)' },
-        [lastBotMove.to]: { backgroundColor: 'rgba(255, 210, 0, 0.55)' },
-      }
-    : {}
+  const botMoveHighlight = lastBotMove ? {
+    [lastBotMove.from]: { backgroundColor: 'rgba(255, 210, 0, 0.35)' },
+    [lastBotMove.to]: { backgroundColor: 'rgba(255, 210, 0, 0.55)' },
+  } : {}
 
-  const selectedHighlight = selectedSquare
-    ? { [selectedSquare]: { backgroundColor: 'rgba(0, 212, 255, 0.4)' } }
-    : {}
+  const selectedHighlight = selectedSquare ? {
+    [selectedSquare]: { backgroundColor: 'rgba(0, 212, 255, 0.4)' }
+  } : {}
+
+  // Board position — show history position when navigating
+  const boardFen = fenHistory[viewingIndex] || game.fen()
 
   return (
     <main className="min-h-screen bg-[#080c10] flex flex-col">
@@ -428,22 +487,31 @@ function GameContent() {
         <div className="flex items-center gap-2">
           <div className={`px-3 py-1 rounded-full text-xs font-bold ${
             status === 'finished' ? 'bg-gray-500/20 text-gray-400'
+            : isViewingHistory ? 'bg-purple-500/20 text-purple-400'
             : isMyTurn ? 'bg-green-500/20 text-green-400'
             : botThinking ? 'bg-yellow-500/20 text-yellow-400'
             : 'bg-yellow-500/20 text-yellow-400'
           }`}>
             {status === 'finished' ? 'Game Over'
-              : botThinking ? `Opponent ${thinkingMsg}`
+              : isViewingHistory ? 'Reviewing...'
+              : botThinking ? `${opponentName} ${thinkingMsg}`
               : isMyTurn ? 'Your Turn ♟'
               : "Opponent's Turn"}
           </div>
-          {/* Resign button */}
-          {status === 'playing' && (
+          {status === 'playing' && !isViewingHistory && (
             <button
               onClick={() => setShowResignConfirm(true)}
               className="px-3 py-1 rounded-full text-xs font-bold bg-red-500/10 text-red-400 hover:bg-red-500/20 transition-colors"
             >
               Resign
+            </button>
+          )}
+          {isViewingHistory && (
+            <button
+              onClick={goToCurrentMove}
+              className="px-3 py-1 rounded-full text-xs font-bold bg-purple-500/20 text-purple-400 hover:bg-purple-500/30 transition-colors"
+            >
+              Back to game
             </button>
           )}
         </div>
@@ -453,14 +521,14 @@ function GameContent() {
       <div className="px-4 py-3 flex items-center justify-between bg-[#0d1117] mx-4 rounded-2xl mb-3 border border-[#1e2d3d]">
         <div className="flex items-center gap-3">
           <div className="w-10 h-10 rounded-full flex items-center justify-center text-lg border border-[#1e2d3d] bg-[#161b22]">
-            ♟️
+            {opponentFlag}
           </div>
           <div>
             <p className="text-white font-bold text-sm">{opponentName}</p>
-            <p className="text-gray-500 text-xs capitalize">
-              {playerColor === 'white' ? 'Black' : 'White'}
+            <p className="text-gray-500 text-xs">
+              {opponentCountry || (playerColor === 'white' ? 'Black' : 'White')}
               {botThinking && (
-                <span className="text-gray-500 animate-pulse"> · {thinkingMsg}</span>
+                <span className="text-yellow-500 animate-pulse"> · {thinkingMsg}</span>
               )}
             </p>
           </div>
@@ -476,7 +544,7 @@ function GameContent() {
       <div className="px-4 flex-1 flex items-center justify-center">
         <div className="w-full max-w-sm">
           <Chessboard
-            position={game.fen()}
+            position={boardFen}
             onPieceDrop={onDrop}
             boardOrientation={playerColor}
             customBoardStyle={{
@@ -485,13 +553,64 @@ function GameContent() {
             }}
             customDarkSquareStyle={{ backgroundColor: '#1e2d3d' }}
             customLightSquareStyle={{ backgroundColor: '#2d4060' }}
-            arePiecesDraggable={status !== 'finished' && !botThinking}
+            arePiecesDraggable={status !== 'finished' && !botThinking && !isViewingHistory}
             onSquareClick={handleSquareClick}
             customSquareStyles={{
               ...botMoveHighlight,
               ...selectedHighlight,
             }}
           />
+        </div>
+      </div>
+
+      {/* Move navigation */}
+      <div className="px-4 mt-3">
+        <div className="bg-[#0d1117] border border-[#1e2d3d] rounded-2xl p-3">
+          <div className="flex items-center gap-2 mb-2">
+            <button
+              onClick={() => setViewingIndex(0)}
+              disabled={viewingIndex === 0}
+              className="w-8 h-8 flex items-center justify-center rounded-lg bg-[#161b22] text-white disabled:opacity-30 hover:bg-[#1e2d3d] transition-colors text-xs"
+            >
+              ⏮
+            </button>
+            <button
+              onClick={goToPrevMove}
+              disabled={viewingIndex === 0}
+              className="w-8 h-8 flex items-center justify-center rounded-lg bg-[#161b22] text-white disabled:opacity-30 hover:bg-[#1e2d3d] transition-colors"
+            >
+              ←
+            </button>
+            <button
+              onClick={goToNextMove}
+              disabled={viewingIndex === fenHistory.length - 1}
+              className="w-8 h-8 flex items-center justify-center rounded-lg bg-[#161b22] text-white disabled:opacity-30 hover:bg-[#1e2d3d] transition-colors"
+            >
+              →
+            </button>
+            <button
+              onClick={goToCurrentMove}
+              disabled={viewingIndex === fenHistory.length - 1}
+              className="w-8 h-8 flex items-center justify-center rounded-lg bg-[#161b22] text-white disabled:opacity-30 hover:bg-[#1e2d3d] transition-colors text-xs"
+            >
+              ⏭
+            </button>
+            <div className="flex-1 overflow-x-auto flex gap-1 ml-1">
+              {moveHistory.map((move, i) => (
+                <button
+                  key={i}
+                  onClick={() => setViewingIndex(i + 1)}
+                  className={`px-2 py-1 rounded text-xs whitespace-nowrap transition-colors ${
+                    viewingIndex === i + 1
+                      ? 'bg-[#00d4ff] text-black font-bold'
+                      : 'bg-[#161b22] text-gray-400 hover:bg-[#1e2d3d] hover:text-white'
+                  }`}
+                >
+                  {i % 2 === 0 ? `${Math.floor(i / 2) + 1}.` : ''}{move}
+                </button>
+              ))}
+            </div>
+          </div>
         </div>
       </div>
 
@@ -545,7 +664,6 @@ function GameContent() {
             <p className="text-5xl mb-4">
               {result === 'draw' ? '🤝'
                 : result === 'you_win' ? '🏆'
-                : result === 'you_lose' ? '💀'
                 : '💀'}
             </p>
             <h2 className="text-2xl font-bold text-white mb-2">
@@ -553,7 +671,16 @@ function GameContent() {
                 : result === 'you_win' ? 'You Win!'
                 : 'You Lose'}
             </h2>
-            <p className="text-gray-500 text-sm mb-6">vs {opponentName}</p>
+            <p className="text-gray-500 text-sm mb-2">vs {opponentName}</p>
+            {botProfile && (
+              <p className="text-gray-600 text-xs mb-6">{opponentFlag} {opponentCountry}</p>
+            )}
+            <button
+              onClick={() => router.push(`/play/analysis?id=${gameId}`)}
+              className="w-full bg-[#1e2d3d] hover:bg-[#2a3d50] text-white font-bold py-3 rounded-xl text-sm mb-3"
+            >
+              View Analysis 📊
+            </button>
             <button
               onClick={() => router.push('/play')}
               className="w-full bg-[#00d4ff] hover:bg-[#00b8e0] text-black font-bold py-3 rounded-xl text-sm mb-3"
