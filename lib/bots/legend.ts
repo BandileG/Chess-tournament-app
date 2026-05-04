@@ -4,8 +4,8 @@
 // Delay: 5000–17000ms
 // ============================================================
 
-import type { BotProfile } from './types'
-import { getTier } from './types'
+import type { BotProfile } from '@/lib/bots/types'
+import { getTier } from '@/lib/bots/types'
 
 const RAW = [
   {
