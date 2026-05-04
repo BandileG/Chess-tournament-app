@@ -41,27 +41,25 @@ function GameContent() {
   const [selectedSquare, setSelectedSquare] = useState<string | null>(null)
   const [moveNumber, setMoveNumber] = useState(1)
   const [lastBotMove, setLastBotMove] = useState<{ from: string; to: string } | null>(null)
-const [lastPlayerMove, setLastPlayerMove] = useState<{ from: string; to: string } | null>(null)
+  const [lastPlayerMove, setLastPlayerMove] = useState<{ from: string; to: string } | null>(null)
   const [showResignConfirm, setShowResignConfirm] = useState(false)
-
-  // ── Move history navigation ──
-  const [moveHistory, setMoveHistory] = useState<string[]>([]) // SAN moves
+  const [moveHistory, setMoveHistory] = useState<string[]>([])
   const [fenHistory, setFenHistory] = useState<string[]>(['rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1'])
-  const [viewingIndex, setViewingIndex] = useState<number>(0) // 0 = start, fenHistory.length-1 = current
+  const [viewingIndex, setViewingIndex] = useState<number>(0)
   const isViewingHistory = viewingIndex < fenHistory.length - 1
 
   const router = useRouter()
   const searchParams = useSearchParams()
   const moveStartRef = useRef<number>(Date.now())
   const gameOverCalledRef = useRef(false)
-// ── Rotate thinking messages with bot name ──
+
+  // ── Rotate thinking messages ──
   useEffect(() => {
     if (!botThinking) return
-    const msgs = THINKING_MESSAGES
     let i = 0
     const interval = setInterval(() => {
-      i = (i + 1) % msgs.length
-      setThinkingMsg(msgs[i])
+      i = (i + 1) % THINKING_MESSAGES.length
+      setThinkingMsg(THINKING_MESSAGES[i])
     }, 3000)
     return () => clearInterval(interval)
   }, [botThinking])
@@ -123,7 +121,6 @@ const [lastPlayerMove, setLastPlayerMove] = useState<{ from: string; to: string 
           setMoveHistory(history)
           setMoveNumber(Math.ceil(history.length / 2) + 1)
 
-          // Rebuild fen history from scratch
           const fens: string[] = ['rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1']
           const tempGame = new Chess()
           for (const move of history) {
@@ -136,10 +133,9 @@ const [lastPlayerMove, setLastPlayerMove] = useState<{ from: string; to: string 
 
         const wTime = Math.floor(data.white_time_remaining / 1000)
         const bTime = Math.floor(data.black_time_remaining / 1000)
-        const tTime = Math.floor(data.time_control)
         setWhiteTime(wTime)
         setBlackTime(bTime)
-        setTotalTime(tTime)
+        setTotalTime(Math.floor(data.time_control))
 
         if (data.status === 'completed') {
           setStatus('finished')
@@ -206,11 +202,8 @@ const [lastPlayerMove, setLastPlayerMove] = useState<{ from: string; to: string 
       if (isWhiteTurn) {
         setWhiteTime(prev => {
           if (prev <= 1) {
-            if (playerColor === 'white') {
-              handleGameOver(null, 'timeout', 'you_lose')
-            } else {
-              handleGameOver(userId, 'timeout', 'you_win')
-            }
+            if (playerColor === 'white') handleGameOver(null, 'timeout', 'you_lose')
+            else handleGameOver(userId, 'timeout', 'you_win')
             return 0
           }
           return prev - 1
@@ -218,11 +211,8 @@ const [lastPlayerMove, setLastPlayerMove] = useState<{ from: string; to: string 
       } else {
         setBlackTime(prev => {
           if (prev <= 1) {
-            if (playerColor === 'black') {
-              handleGameOver(null, 'timeout', 'you_lose')
-            } else {
-              handleGameOver(userId, 'timeout', 'you_win')
-            }
+            if (playerColor === 'black') handleGameOver(null, 'timeout', 'you_lose')
+            else handleGameOver(userId, 'timeout', 'you_win')
             return 0
           }
           return prev - 1
@@ -280,10 +270,7 @@ const [lastPlayerMove, setLastPlayerMove] = useState<{ from: string; to: string 
       setTimeout(() => setLastBotMove(null), 1500)
 
       setGame(gameCopy)
-setLastPlayerMove({ from: selectedSquare, to: square })
       setMoveNumber(prev => prev + 1)
-
-      // Update move history and fen history
       setMoveHistory(prev => [...prev, move.san])
       setFenHistory(prev => {
         const updated = [...prev, gameCopy.fen()]
@@ -361,17 +348,9 @@ setLastPlayerMove({ from: selectedSquare, to: square })
   }
 
   // ── Move navigation ──
-  const goToPrevMove = () => {
-    setViewingIndex(prev => Math.max(0, prev - 1))
-  }
-
-  const goToNextMove = () => {
-    setViewingIndex(prev => Math.min(fenHistory.length - 1, prev + 1))
-  }
-
-  const goToCurrentMove = () => {
-    setViewingIndex(fenHistory.length - 1)
-  }
+  const goToPrevMove = () => setViewingIndex(prev => Math.max(0, prev - 1))
+  const goToNextMove = () => setViewingIndex(prev => Math.min(fenHistory.length - 1, prev + 1))
+  const goToCurrentMove = () => setViewingIndex(fenHistory.length - 1)
 
   // ── Square click ──
   const handleSquareClick = useCallback((square: string) => {
@@ -388,6 +367,7 @@ setLastPlayerMove({ from: selectedSquare, to: square })
           const timeSpent = Date.now() - moveStartRef.current
           moveStartRef.current = Date.now()
           setGame(gameCopy)
+          setLastPlayerMove({ from: selectedSquare, to: square })
           setMoveNumber(prev => prev + 1)
           setSelectedSquare(null)
           setMoveHistory(prev => [...prev, move.san])
@@ -430,7 +410,7 @@ setLastPlayerMove({ from: selectedSquare, to: square })
     const timeSpent = Date.now() - moveStartRef.current
     moveStartRef.current = Date.now()
     setGame(gameCopy)
-setLastPlayerMove({ from: sourceSquare, to: targetSquare })
+    setLastPlayerMove({ from: sourceSquare, to: targetSquare })
     setMoveNumber(prev => prev + 1)
     setMoveHistory(prev => [...prev, move!.san])
     setFenHistory(prev => {
@@ -453,7 +433,7 @@ setLastPlayerMove({ from: sourceSquare, to: targetSquare })
     const sec = String(s % 60).padStart(2, '0')
     return `${m}:${sec}`
   }
-if (loading) {
+  if (loading) {
     return (
       <main className="min-h-screen bg-[#080c10] flex items-center justify-center">
         <div className="w-10 h-10 rounded-full border-4 border-t-[#00d4ff] border-[#1e2d3d] animate-spin" />
@@ -471,11 +451,15 @@ if (loading) {
     [lastBotMove.to]: { backgroundColor: 'rgba(255, 210, 0, 0.55)' },
   } : {}
 
+  const playerMoveHighlight = lastPlayerMove ? {
+    [lastPlayerMove.from]: { backgroundColor: 'rgba(0, 212, 255, 0.35)' },
+    [lastPlayerMove.to]: { backgroundColor: 'rgba(0, 212, 255, 0.55)' },
+  } : {}
+
   const selectedHighlight = selectedSquare ? {
     [selectedSquare]: { backgroundColor: 'rgba(0, 212, 255, 0.4)' }
   } : {}
 
-  // Board position — show history position when navigating
   const boardFen = fenHistory[viewingIndex] || game.fen()
 
   return (
@@ -557,14 +541,13 @@ if (loading) {
             customDarkSquareStyle={{ backgroundColor: '#1e2d3d' }}
             customLightSquareStyle={{ backgroundColor: '#2d4060' }}
             arePiecesDraggable={status !== 'finished' && !botThinking && !isViewingHistory}
+            onSquareClick={handleSquareClick}
+            animationDuration={200}
             customSquareStyles={{
-  ...botMoveHighlight,
-  ...(lastPlayerMove ? {
-    [lastPlayerMove.from]: { backgroundColor: 'rgba(0, 212, 255, 0.35)' },
-    [lastPlayerMove.to]: { backgroundColor: 'rgba(0, 212, 255, 0.55)' },
-  } : {}),
-  ...selectedHighlight,
-}}
+              ...botMoveHighlight,
+              ...playerMoveHighlight,
+              ...selectedHighlight,
+            }}
           />
         </div>
       </div>
@@ -572,35 +555,27 @@ if (loading) {
       {/* Move navigation */}
       <div className="px-4 mt-3">
         <div className="bg-[#0d1117] border border-[#1e2d3d] rounded-2xl p-3">
-          <div className="flex items-center gap-2 mb-2">
+          <div className="flex items-center gap-2">
             <button
               onClick={() => setViewingIndex(0)}
               disabled={viewingIndex === 0}
               className="w-8 h-8 flex items-center justify-center rounded-lg bg-[#161b22] text-white disabled:opacity-30 hover:bg-[#1e2d3d] transition-colors text-xs"
-            >
-              ⏮
-            </button>
+            >⏮</button>
             <button
               onClick={goToPrevMove}
               disabled={viewingIndex === 0}
               className="w-8 h-8 flex items-center justify-center rounded-lg bg-[#161b22] text-white disabled:opacity-30 hover:bg-[#1e2d3d] transition-colors"
-            >
-              ←
-            </button>
+            >←</button>
             <button
               onClick={goToNextMove}
               disabled={viewingIndex === fenHistory.length - 1}
               className="w-8 h-8 flex items-center justify-center rounded-lg bg-[#161b22] text-white disabled:opacity-30 hover:bg-[#1e2d3d] transition-colors"
-            >
-              →
-            </button>
+            >→</button>
             <button
               onClick={goToCurrentMove}
               disabled={viewingIndex === fenHistory.length - 1}
               className="w-8 h-8 flex items-center justify-center rounded-lg bg-[#161b22] text-white disabled:opacity-30 hover:bg-[#1e2d3d] transition-colors text-xs"
-            >
-              ⏭
-            </button>
+            >⏭</button>
             <div className="flex-1 overflow-x-auto flex gap-1 ml-1">
               {moveHistory.map((move, i) => (
                 <button
@@ -644,21 +619,15 @@ if (loading) {
           <div className="bg-[#0d1117] border border-[#1e2d3d] rounded-2xl p-8 w-full max-w-sm text-center">
             <p className="text-4xl mb-4">🏳️</p>
             <h2 className="text-xl font-bold text-white mb-2">Resign?</h2>
-            <p className="text-gray-500 text-sm mb-6">
-              Are you sure you want to give up this game?
-            </p>
+            <p className="text-gray-500 text-sm mb-6">Are you sure you want to give up?</p>
             <button
               onClick={handlePlayerResign}
               className="w-full bg-red-500 hover:bg-red-600 text-white font-bold py-3 rounded-xl text-sm mb-3"
-            >
-              Yes, Resign
-            </button>
+            >Yes, Resign</button>
             <button
               onClick={() => setShowResignConfirm(false)}
               className="w-full text-gray-600 text-xs hover:text-gray-400 py-2"
-            >
-              Keep Playing
-            </button>
+            >Keep Playing</button>
           </div>
         </div>
       )}
@@ -668,14 +637,10 @@ if (loading) {
         <div className="fixed inset-0 bg-black/80 flex items-center justify-center px-4 z-50">
           <div className="bg-[#0d1117] border border-[#1e2d3d] rounded-2xl p-8 w-full max-w-sm text-center">
             <p className="text-5xl mb-4">
-              {result === 'draw' ? '🤝'
-                : result === 'you_win' ? '🏆'
-                : '💀'}
+              {result === 'draw' ? '🤝' : result === 'you_win' ? '🏆' : '💀'}
             </p>
             <h2 className="text-2xl font-bold text-white mb-2">
-              {result === 'draw' ? 'Draw!'
-                : result === 'you_win' ? 'You Win!'
-                : 'You Lose'}
+              {result === 'draw' ? 'Draw!' : result === 'you_win' ? 'You Win!' : 'You Lose'}
             </h2>
             <p className="text-gray-500 text-sm mb-2">vs {opponentName}</p>
             {botProfile && (
@@ -684,21 +649,15 @@ if (loading) {
             <button
               onClick={() => router.push(`/play/analysis?id=${gameId}`)}
               className="w-full bg-[#1e2d3d] hover:bg-[#2a3d50] text-white font-bold py-3 rounded-xl text-sm mb-3"
-            >
-              View Analysis 📊
-            </button>
+            >View Analysis 📊</button>
             <button
               onClick={() => router.push('/play')}
               className="w-full bg-[#00d4ff] hover:bg-[#00b8e0] text-black font-bold py-3 rounded-xl text-sm mb-3"
-            >
-              Play Again ♟
-            </button>
+            >Play Again ♟</button>
             <button
               onClick={() => router.push('/dashboard')}
               className="w-full text-gray-600 text-xs hover:text-gray-400 py-2"
-            >
-              Back to Dashboard
-            </button>
+            >Back to Dashboard</button>
           </div>
         </div>
       )}
