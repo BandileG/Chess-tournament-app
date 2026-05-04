@@ -237,4 +237,4 @@ export function shouldBotResign(
 
   // 50/50 coin flip — not always resigns even when conditions are met
   return Math.random() < 0.5
-}
+} 
