@@ -4,9 +4,8 @@
 // Delay: 4000–13000ms
 // ============================================================
 
-import type { BotProfile } from './types'
-import { getTier } from './types'
-
+import type { BotProfile } from '@/lib/bots/types'
+import { getTier } from '@/lib/bots/types'
 const RAW = [
   {
     id: 'bot_pawnstorm_viktor',
